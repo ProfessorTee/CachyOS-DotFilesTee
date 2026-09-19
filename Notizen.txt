@@ -1,0 +1,27 @@
+❯ SSD Wieder Broken? \/
+sudo ntfsfix -d /dev/nvme1n1p2
+
+
+Laufwerk Liste: + Einhänger
+sudo nano /etc/fstab
+
+#Neu Laden der Infos + neu Einhängen
+systemctl daemon-reload
+sudo mount -a
+
+
+
+
+
+
+
+
+
+ChangeLog:
+    17.09.26
+windows1 auf ntfs-3g gesetzt von ntfs3
+
+    18.09.26
+win1 formatiert auf btrfs (whoops assetto komplett gelöscht)
+    19.09.26
+läuft bereits alles wieder (7h downloads dank 33mb/s max - notsoyay)

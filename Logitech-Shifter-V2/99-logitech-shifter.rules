@@ -1,0 +1,12 @@
+# udev-Regel fuer den Logitech-Shifter-USB-Adapter.
+#
+# idVendor/idProduct vorher pruefen mit:
+#   lsusb
+#   udevadm info -a -p $(udevadm info -q path -n /dev/input/event10) | grep -E "idVendor|idProduct"
+# und ggf. unten ersetzen (046d = Logitech-Vendor-ID, Beispielwert).
+
+SUBSYSTEM=="input", ATTRS{idVendor}=="046d", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Erlaubt dem uinput-Modul (fuer das virtuelle Geraet) Zugriff fuer die
+# Gruppe "input", statt root zu benoetigen.
+KERNEL=="uinput", MODE="0660", GROUP="input"

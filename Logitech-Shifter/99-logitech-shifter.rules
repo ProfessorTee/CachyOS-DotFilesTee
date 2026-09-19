@@ -1,0 +1,12 @@
+# udev-Regel fuer den Logitech-Shifter (InterBiometrics-Adapter,
+# Vendor 1209 / Product f00d - bestaetigt via
+# `cat /proc/bus/input/devices`).
+#
+# Gibt der Gruppe "input" Zugriff auf das Geraet, damit der Treiber ohne
+# root laufen kann.
+
+SUBSYSTEM=="input", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="f00d", MODE="0660", GROUP="input", TAG+="uaccess"
+
+# Erlaubt dem uinput-Modul (fuer das virtuelle Ausgabe-Geraet) Zugriff
+# fuer die Gruppe "input", statt root zu benoetigen.
+KERNEL=="uinput", MODE="0660", GROUP="input"

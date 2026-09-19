@@ -1,0 +1,2 @@
+# Bluetooth-Fix für MediaTek MT7927/MT6639 (X870E-E Gaming WiFi Neo)
+yay -S --noconfirm mediatek-mt7927-dkms

@@ -1,0 +1,4 @@
+ADDED:
+
+UUID=01DD3D100D09CCA0 /mnt/windows1 ntfs3 defaults,nofail,uid=1000,gid=1000,rw,exec,umask=000 0 0
+UUID=14584954584935B0 /mnt/windows2 ntfs3 defaults,nofail,uid=1000,gid=1000,rw,exec,umask=000 0 0

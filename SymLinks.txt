@@ -1,0 +1,10 @@
+SymLink = ln -s "Ziel/Original"   "LinkAnfang"
+
+
+Link Win2 (NVME 1)
+ln -s "/mnt/windows2/Program Files (x86)/Steam" "/mnt/windows2/SteamLibrary"
+ln -s "/home/professortee/Games/compatdata_win2" "/mnt/windows2/SteamLibrary/steamapps/compatdata"
+
+
+Link Win1 (NVME 2)
+ln -s "/home/professortee/Games/compatdata_win1" "/mnt/windows1/SteamLibrary/steamapps/compatdata"

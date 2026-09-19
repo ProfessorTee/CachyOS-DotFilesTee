@@ -1,0 +1,16 @@
+[Unit]
+Description=Logitech H-Shifter virtueller Joystick-Treiber
+After=multi-user.target
+
+[Service]
+Type=simple
+# Deinen Benutzernamen eintragen (id -un)
+User=professortee
+WorkingDirectory=/opt/shifter-driver
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /opt/shifter-driver/shifter_driver_v2.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
