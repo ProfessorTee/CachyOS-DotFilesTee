@@ -18,7 +18,7 @@ CachyOS-Installation, oder ein komplett neuer Rechner.
 5. Bluetooth-Fix (MediaTek MT7927/MT6639)
 6. OpenRGB-Fix (i2c-Gruppe + udev + Kernel-Parameter)
 7. Laufwerke/fstab einrichten
-8. Logitech-Shifter-Treiber einrichten (falls Sim-Racing-Setup genutzt wird)
+8. Logitech H-Shifter-Treiber einrichten (falls Sim-Racing-Setup genutzt wird)
 9. Auto-Backup-Timer aktivieren
 
 ---
@@ -188,7 +188,46 @@ mit `ntfsfix`, falls eine Windows-Partition mal "dirty" ist).
 
 ## 8. Logitech H-Shifter Treiber (nur falls Sim-Racing-Setup genutzt wird)
 
-Ausführliche Anleitung: `Logitech-Shifter/README.md` (Kurzfassung):
+**Empfohlen: [hid-logishifter](https://github.com/AngryNui/hid-logishifter)**
+– ein echter Kernel-HID-Treiber für genau dieses Gerät (Vendor/Product
+`1209:f00d`, "InterBiometrics Logitech@ Shifter"), der die 7 Gänge
+(1-6 + Rückwärtsgang) sauber als eigene Buttons exponiert. Deutlich
+robuster als die eigene Python-Bastellösung weiter unten, da echter
+Kernel-Treiber statt virtuellem evdev-Gerät im Userspace.
+
+Installation (Arch/CachyOS, über AUR):
+```bash
+yay -S hid-logishifter-dkms
+```
+Danach:
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+```
+Shifter einmal aus- und wieder einstecken, dann mit `evtest` prüfen,
+ob die Gänge als eigene Buttons ankommen.
+
+**Falls der Quellcode lokal geklont wird** (z.B. zum manuellen Bauen
+via `makepkg` oder zum Anpassen): direkt in diesen DotFiles-Ordner
+klonen, damit es automatisch vom täglichen Backup mit erfasst wird:
+
+```bash
+git clone https://github.com/AngryNui/hid-logishifter.git ~/DotFiles/hid-logishifter
+rm -rf ~/DotFiles/hid-logishifter/.git
+```
+
+**Wichtig:** Das `rm -rf .../.git` danach ist kein Versehen, sondern
+nötig! Ohne das würde unser eigenes Repo den geklonten Ordner nur als
+leere "Submodul-Referenz" (Commit-Zeiger) erfassen statt als echte
+Kopie der Dateien – bei einem Restore stünde dann ein leerer Ordner
+da, falls das Original-Repo auf GitHub inzwischen nicht mehr existiert.
+Mit entferntem `.git` wird der komplette Dateiinhalt stattdessen ganz
+normal von unserem eigenen Repo (und damit vom Auto-Backup-Timer)
+mitversioniert.
+
+**Alte eigene Lösung (Fallback, falls hid-logishifter aus irgendeinem
+Grund nicht funktioniert):** Ausführliche Anleitung in
+`Logitech-Shifter/README.md`, Kurzfassung:
 
 ```bash
 sudo pacman -S python-evdev
@@ -203,10 +242,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now logitech-shifter.service
 ```
 
-**Hinweis:** `Logitech-Shifter-V2/` enthält eine neuere, in Arbeit
-befindliche Version (v2/v3 Treiber-Skripte) – falls die stabiler läuft
-als die V1, diese stattdessen verwenden. Prüfen, welche zuletzt aktiv
-genutzt wurde, bevor beide parallel eingerichtet werden.
+`Logitech-Shifter-V2/` enthält eine neuere, in Arbeit befindliche
+Version dieser Eigenbau-Lösung (v2/v3 Treiber-Skripte) – nur relevant,
+falls hid-logishifter aus irgendeinem Grund nicht in Frage kommt.
 
 ---
 
