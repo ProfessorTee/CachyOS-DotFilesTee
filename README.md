@@ -225,27 +225,6 @@ Mit entferntem `.git` wird der komplette Dateiinhalt stattdessen ganz
 normal von unserem eigenen Repo (und damit vom Auto-Backup-Timer)
 mitversioniert.
 
-**Alte eigene Lösung (Fallback, falls hid-logishifter aus irgendeinem
-Grund nicht funktioniert):** Ausführliche Anleitung in
-`Logitech-Shifter/README.md`, Kurzfassung:
-
-```bash
-sudo pacman -S python-evdev
-sudo usermod -aG input $USER
-# neu anmelden!
-cd ~/DotFiles/Logitech-Shifter
-python3 diagnose.py                       # auf Konflikte (z.B. input-remapper) prüfen
-sudo cp 99-logitech-shifter.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules && sudo udevadm trigger
-sudo cp logitech-shifter.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now logitech-shifter.service
-```
-
-`Logitech-Shifter-V2/` enthält eine neuere, in Arbeit befindliche
-Version dieser Eigenbau-Lösung (v2/v3 Treiber-Skripte) – nur relevant,
-falls hid-logishifter aus irgendeinem Grund nicht in Frage kommt.
-
 ---
 
 ## 9. Auto-Backup-Timer aktivieren
@@ -266,15 +245,6 @@ Manueller Test (sollte ohne Rückfrage durchlaufen):
 ~/DotFiles/backup.sh
 cat ~/DotFiles/.backup.log
 ```
-
----
-
-## Was NICHT in diesem Repo ist (separat sichern!)
-
-- Der private SSH-Key (`~/.ssh/id_ed25519_github`) – niemals in Git
-- GitHub Personal Access Tokens / Passwörter
-- Steam-Bibliotheken, große Downloads, Spiele-Saves
-- Windows-Partitionen selbst (nur die Mount-Konfiguration ist hier dokumentiert)
 
 ---
 
