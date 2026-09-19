@@ -1,0 +1,6 @@
+[Unit]
+Description=Automatisches DotFiles Backup (git commit + push)
+
+[Service]
+Type=oneshot
+ExecStart=%h/DotFiles/backup.sh
