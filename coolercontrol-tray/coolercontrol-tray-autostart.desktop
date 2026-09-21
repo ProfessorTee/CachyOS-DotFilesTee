@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=CoolerControl Tray
+Comment=Zeigt ausgewaehlte CoolerControl-Temperaturen im KDE-Tray an
+Exec=python3 /home/professortee/DotFiles/coolercontrol-tray/coolercontrol_tray.py
+Icon=utilities-system-monitor
+X-KDE-autostart-after=panel
+NoDisplay=true
