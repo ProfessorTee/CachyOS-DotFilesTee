@@ -1,0 +1,11 @@
+#
+# This file is parsed by pam_env module
+#
+# Syntax: simple "KEY=VAL" pairs on separate lines
+#
+__GL_SHADER_DISK_CACHE_SIZE=12000000000
+__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
+ENABLE_HDR_WSI=1
+__GL_MaxFramesAllowed=1
+__GL_YIELD=USLEEP
+KWIN_DRM_ALLOW_NVIDIA_COLORSPACE=1
