@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Authors": [ { "Name": "professortee" } ],
+        "Category": "Graphics",
+        "Description": "Steuert den LN Plotter Wallpaper: Formeln zeichnen, Pause, Farbschema, Generator",
+        "Description[de]": "Steuert den LN Plotter Wallpaper: Formeln zeichnen, Pause, Farbschema, Generator",
+        "Icon": "draw-freehand",
+        "Id": "de.professortee.lnplotter",
+        "License": "MIT",
+        "Name": "LN Plotter",
+        "Version": "1.0"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

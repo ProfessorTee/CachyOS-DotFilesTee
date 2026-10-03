@@ -20,6 +20,7 @@ CachyOS-Installation, oder ein komplett neuer Rechner.
 7. Laufwerke/fstab einrichten
 8. Logitech H-Shifter-Treiber einrichten (falls Sim-Racing-Setup genutzt wird)
 9. Auto-Backup-Timer aktivieren
+10. Live-Wallpaper (Primitive Live & LN Plotter) – optional
 
 ---
 
@@ -245,6 +246,33 @@ Manueller Test (sollte ohne Rückfrage durchlaufen):
 ~/DotFiles/backup.sh
 cat ~/DotFiles/.backup.log
 ```
+
+---
+
+## 10. Live-Wallpaper (Primitive Live & LN Plotter) – optional
+
+Zwei eigene Web-Wallpaper für das Wallpaper-Engine-KDE-Plugin, jeweils mit
+Plasma-Widget zur Steuerung. Installer + ausführliche Anleitung liegen in
+`live-wallpaper/` (Arbeitskopie zusätzlich in `~/Projekte/live-wallpaper`).
+
+```bash
+yay -S plasma6-wallpapers-wallpaper-engine-git
+sudo pacman -S --needed qt6-webengine imagemagick python-pipx
+pipx install vpype
+
+cd ~/DotFiles/live-wallpaper/primitive-live && ./install.sh
+cd ~/DotFiles/live-wallpaper/ln-plotter && ./install.sh
+
+# eigene Einstellungen/Formeln zurückspielen (sichert backup.sh täglich mit)
+cp ~/DotFiles/config/primitive-live/einstellungen.conf ~/.config/primitive-live/
+cp ~/DotFiles/config/ln-plotter/formeln.txt ~/.config/ln-plotter/
+plasmashell --replace &
+```
+
+Danach Wallpaper in den Desktop-Einstellungen wählen und die Widgets
+**Primitive Live** / **LN Plotter** ins Panel ziehen. Die Bildvorlagen
+(`~/Bilder/Primitive`) sind NICHT im Repo – die liegen beim normalen
+Bilder-Backup. Details: `live-wallpaper/ANLEITUNG.md`.
 
 ---
 

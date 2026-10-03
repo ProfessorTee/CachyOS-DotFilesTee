@@ -10,3 +10,6 @@ läuft bereits alles wieder (7h downloads dank 33mb/s max - notsoyay)
     21.09.26
 .etc/fstab gelöscht
 HDR-Fix for TV
+
+    02.10.26
+Live-Wallpaper (Primitive Live + LN Plotter) inkl. KDE-Widgets: live-wallpaper/, Einstellungen sichert backup.sh mit

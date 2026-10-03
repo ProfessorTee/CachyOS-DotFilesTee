@@ -1,0 +1,107 @@
+{
+  "title": "Primitive Live",
+  "description": "Malt Bilder live aus geometrischen Formen nach – Port von fogleman/primitive.",
+  "file": "index.html",
+  "preview": "preview.jpg",
+  "type": "web",
+  "tags": [
+    "Abstract"
+  ],
+  "contentrating": "Everyone",
+  "general": {
+    "properties": {
+      "mode": {
+        "order": 0,
+        "text": "Formen",
+        "type": "combo",
+        "value": 1,
+        "options": [
+          {
+            "label": "Gemischt",
+            "value": 0
+          },
+          {
+            "label": "Dreiecke",
+            "value": 1
+          },
+          {
+            "label": "Rechtecke",
+            "value": 2
+          },
+          {
+            "label": "Ellipsen",
+            "value": 3
+          },
+          {
+            "label": "Gedrehte Rechtecke",
+            "value": 5
+          },
+          {
+            "label": "Gedrehte Ellipsen",
+            "value": 7
+          }
+        ]
+      },
+      "alpha": {
+        "order": 1,
+        "text": "Deckkraft",
+        "type": "slider",
+        "min": 16,
+        "max": 255,
+        "value": 128
+      },
+      "shapes": {
+        "order": 3,
+        "text": "Formen pro Bild",
+        "type": "slider",
+        "min": 50,
+        "max": 3000,
+        "value": 600
+      },
+      "workres": {
+        "order": 4,
+        "text": "Rechenauflösung",
+        "type": "slider",
+        "min": 80,
+        "max": 400,
+        "value": 200
+      },
+      "budget": {
+        "order": 5,
+        "text": "CPU pro Frame (ms)",
+        "type": "slider",
+        "min": 2,
+        "max": 25,
+        "value": 10
+      },
+      "hold": {
+        "order": 6,
+        "text": "Standzeit fertiges Bild (s)",
+        "type": "slider",
+        "min": 0,
+        "max": 300,
+        "value": 20
+      },
+      "shuffle": {
+        "order": 7,
+        "text": "Zufällige Reihenfolge",
+        "type": "bool",
+        "value": true
+      },
+      "hud": {
+        "order": 8,
+        "text": "Fortschritt anzeigen",
+        "type": "bool",
+        "value": false
+      },
+      "speed": {
+        "order": 2,
+        "text": "Tempo (Formen/Sekunde, 0 = max)",
+        "type": "slider",
+        "min": 0,
+        "max": 60,
+        "value": 8
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Authors": [ { "Name": "professortee" } ],
+        "Category": "Graphics",
+        "Description": "Steuert den Primitive Live Wallpaper: Formen, Deckkraft, Tempo, Pause, nächstes Bild",
+        "Description[de]": "Steuert den Primitive Live Wallpaper: Formen, Deckkraft, Tempo, Pause, nächstes Bild",
+        "Icon": "draw-triangle",
+        "Id": "de.professortee.primitivelive",
+        "License": "MIT",
+        "Name": "Primitive Live",
+        "Version": "1.0"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

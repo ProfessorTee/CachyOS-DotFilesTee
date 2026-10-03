@@ -1,0 +1,40 @@
+# LN Plotter – Formeln für z = f(x, y)
+# Eine Formel pro Zeile, # = Kommentar. Der Generator wählt zufällig eine aus.
+# Änderungen gelten ab dem nächsten Generator-Lauf (sofort: systemctl --user start ln-plotter-gen).
+#
+# Variablen:  x, y   Koordinaten (−1 … 1)
+#             r, phi Polarkoordinaten (Radius, Winkel)
+#             a, b, c  zufällige Parameter (0.5 … 2) – jede Zeichnung wird anders
+#             pi, e
+# Funktionen: sin cos tan asin acos atan atan2 sinh cosh tanh exp log sqrt pow abs
+#             floor ceil round min max mod sign
+# Potenz:     x^2  oder  x**2
+# Die Höhe wird automatisch normiert – Skalierung ist also egal.
+
+# Wellen & Ringe
+sin(a*3*r - phi*b) / (1 + r)
+exp(-a*4*r*r) * cos(b*10*r)
+sin(a*5*r) / (a*5*r + 0.3)
+cos(a*6*r) * exp(-b*1.5*r)
+sin(phi*round(a*3+1) + r*b*4) * r
+
+# Gitter & Interferenzen
+cos(a*4*x) * sin(b*4*y)
+sin(a*6*x) * sin(b*6*y) * exp(-r*r)
+cos(a*3*x)*cos(b*3*y)*cos(c*3*(x+y))
+sin(a*8*x + b*3*sin(c*4*y))
+sin(a*3*x + cos(b*3*y)) * cos(c*2*y)
+abs(sin(a*4*x)) + abs(cos(b*4*y))
+
+# Sattel, Affensattel, Trichter
+x*x*a - y*y*b
+x^3*a - 3*x*y*y*b
+-1 / (a*8*r*r + 1)
+atan(a*12*x*y)
+
+# Landschaften
+exp(-a*6*((x-0.4)^2+y^2)) - exp(-b*6*((x+0.4)^2+(y-0.3)^2)) + 0.6*exp(-c*8*(x^2+(y+0.5)^2))
+sin(a*2*x*y*4) * exp(-r*r)
+sin(a*5*sqrt(abs(x*y*4)) + b)
+
+# Eigene Ideen hier drunter:

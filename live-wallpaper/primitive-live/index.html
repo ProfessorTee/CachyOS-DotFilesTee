@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Primitive Live</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #old { transition: opacity 2.5s ease; pointer-events: none; }
+  #hud { position: fixed; left: 16px; bottom: 12px; font: 12px/1.3 monospace; color: #fff8; text-shadow: 0 0 3px #000; display: none; }
+</style>
+</head>
+<body>
+<canvas id="main"></canvas>
+<canvas id="old"></canvas>
+<div id="hud"></div>
+<script src="images.js"></script>
+<script src="primitive.js"></script>
+<script>
+"use strict";
+// ---------- Einstellungen (in Wallpaper Engine auch über die Eigenschaften änderbar) ----------
+const cfg = {
+  mode: 1,            // 0 gemischt, 1 Dreiecke, 2 Rechtecke, 3 Ellipsen, 5 gedrehte Rechtecke, 7 gedrehte Ellipsen
+  alpha: 128,         // Deckkraft der Formen (1–255)
+  shapes: 600,        // Formen pro Bild, danach Pause und nächstes Bild
+  workRes: 200,       // interne Rechenauflösung (längere Seite); höher = genauer, langsamer
+  candidates: 100,    // Zufallskandidaten pro Form
+  maxAge: 100,        // Hill-Climbing-Geduld
+  budget: 10,         // ms Rechenzeit pro Frame (CPU-Last)
+  speed: 8,           // max. Formen pro Sekunde (0 = so schnell wie möglich)
+  hold: 20,           // Sekunden, die das fertige Bild stehen bleibt
+  shuffle: true,
+  overlay: false,     // neues Bild über das alte malen statt neu anfangen
+  hud: false
+};
+
+const main = document.getElementById("main"), old = document.getElementById("old"), hud = document.getElementById("hud");
+const ctx = main.getContext("2d"), octx = old.getContext("2d");
+let tokens = 0, lastT = 0, model, search, scale, offX, offY, imgIdx = -1, state = "idle", holdUntil = 0, generation = 0;
+let images = (window.PRIMITIVE_IMAGES || []), bag = [];
+
+// images.js vor jedem Bild neu laden → neue Bilder im Ordner erscheinen ohne Neustart
+function reloadImages(cb) {
+  const sc = document.createElement("script");
+  const done = () => {
+    sc.remove();
+    const list = window.PRIMITIVE_IMAGES || [];
+    if (list.length && (list.length !== images.length || list[0] !== images[0] || list[list.length - 1] !== images[images.length - 1])) { images = list; bag = []; }
+    cb();
+  };
+  sc.onload = done; sc.onerror = done;
+  sc.src = "images.js?t=" + Date.now();
+  document.head.appendChild(sc);
+}
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  main.width = Math.round(innerWidth * dpr); main.height = Math.round(innerHeight * dpr);
+  freeOld();
+}
+
+function nextImage() {
+  if (!images.length) return null;
+  if (cfg.shuffle && images.length > 1) {
+    // Shuffle-Bag: jedes Bild kommt einmal dran, bevor sich etwas wiederholt
+    if (!bag.length) {
+      bag = images.map((_, i) => i);
+      for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+      if (bag[bag.length - 1] === imgIdx) bag.unshift(bag.pop());
+    }
+    imgIdx = bag.pop();
+  } else imgIdx = (imgIdx + 1) % images.length;
+  return images[imgIdx];
+}
+
+function start() { reloadImages(startImage); }
+
+// Überblend-Canvas: nur während der Überblendung in Bildschirmgröße, sonst 1×1 (Speicher freigeben)
+let oldTimer = 0;
+function freeOld() { clearTimeout(oldTimer); old.width = 1; old.height = 1; old.style.opacity = 0; }
+function crossfade() {
+  clearTimeout(oldTimer);
+  old.width = main.width; old.height = main.height;
+  octx.drawImage(main, 0, 0);
+  old.style.transition = "none"; old.style.opacity = 1;
+  void old.offsetWidth;
+  old.style.transition = ""; old.style.opacity = 0;
+  oldTimer = setTimeout(freeOld, 2800);
+}
+
+let curSrc = null;
+function startImage(forced, fresh) {
+  const src = forced || nextImage();
+  curSrc = src;
+  if (!src) { hud.style.display = "block"; hud.textContent = "Keine Bilder – leg welche in ~/Bilder/Primitive"; setTimeout(start, 10000); return; }
+  const gen = ++generation;
+  const img = new Image();
+  img.onload = () => {
+    if (gen !== generation) return;
+    const W = main.width, H = main.height;
+    // Zielgröße im Seitenverhältnis des Bildschirms (cover)
+    const k = cfg.workRes / Math.max(W, H);
+    const tw = Math.max(8, Math.round(W * k)), th = Math.max(8, Math.round(H * k));
+    const tmp = document.createElement("canvas"); tmp.width = tw; tmp.height = th;
+    const t = tmp.getContext("2d");
+    const s = Math.max(tw / img.width, th / img.height);
+    t.imageSmoothingQuality = "high";
+    t.drawImage(img, (tw - img.width * s) / 2, (th - img.height * s) * 0.3, img.width * s, img.height * s);
+    let data;
+    try { data = t.getImageData(0, 0, tw, th); }
+    catch (e) { hud.style.display = "block"; hud.textContent = "Bild nicht lesbar (" + e.name + ") – Bilder mit add-images.sh einbetten"; return; }
+
+    const overlay = cfg.overlay && !fresh && model;
+    let init = null;
+    if (overlay) {
+      // sichtbares Bild auf Rechenauflösung verkleinern → Startpunkt für das neue Bild
+      t.clearRect(0, 0, tw, th);
+      t.drawImage(main, 0, 0, tw, th);
+      init = t.getImageData(0, 0, tw, th);
+    }
+    model = null; search = null;              // altes Modell sofort freigeben
+    model = new Primitive.Model(data, cfg, init);
+    search = new Primitive.Search(model, cfg);
+    scale = W / tw; offX = 0; offY = 0;
+    if (!overlay) {
+      crossfade();                            // altes Bild ausblenden
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = `rgb(${model.bg})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    tmp.width = tmp.height = 0;              // Hilfs-Canvas freigeben
+    state = "run";
+  };
+  img.onerror = () => { setTimeout(start, 500); };
+  img.src = src;
+}
+
+let paused = false, prevNow = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = prevNow ? now - prevNow : 0;
+  prevNow = now;
+  // Lücke > 250 ms = Seite war eingefroren (z. B. Vollbild-Spiel): Standzeit um die Lücke
+  // verlängern und kein "Nachholen" von Formen – es geht genau dort weiter, wo es stand.
+  if (dt > 250) {
+    if (state === "hold") holdUntil += dt;
+    lastT = now;
+    return;
+  }
+  if (paused) {
+    if (state === "hold") holdUntil += dt;
+    lastT = now;
+    return;
+  }
+  if (state === "run") {
+    if (cfg.speed > 0) tokens = Math.min(tokens + (now - (lastT || now)) / 1000 * cfg.speed, 3);
+    lastT = now;
+    const deadline = performance.now() + cfg.budget;
+    while (performance.now() < deadline && model.count < cfg.shapes && (cfg.speed <= 0 || tokens >= 1 || search.phase !== 0)) {
+      const r = search.work(deadline - performance.now());
+      if (r) {
+        ctx.globalAlpha = cfg.alpha / 255;
+        ctx.fillStyle = `rgb(${r.col})`;
+        ctx.fill(r.shape.path(scale));
+        tokens -= 1;
+      }
+    }
+    if (cfg.hud) hud.textContent = `${model.count}/${cfg.shapes}  score ${model.score().toFixed(4)}`;
+    if (model.count >= cfg.shapes) { state = "hold"; holdUntil = now + cfg.hold * 1000; }
+  } else if (state === "hold" && now > holdUntil) {
+    state = "idle"; start();
+  }
+}
+
+function restart() { resize(); state = "idle"; imgIdx = Math.max(-1, imgIdx - (cfg.shuffle ? 0 : 1)); start(); }
+
+// ---------- Wallpaper Engine Eigenschaften ----------
+window.wallpaperPropertyListener = {
+  applyUserProperties(p) {
+    let needRestart = false;
+    const num = (key, prop, restartOn = true) => {
+      if (p[key] && p[key].value !== undefined) { const v = Number(p[key].value); if (v !== cfg[prop]) { cfg[prop] = v; needRestart = needRestart || restartOn; } }
+    };
+    num("mode", "mode"); num("alpha", "alpha"); num("shapes", "shapes", false);
+    if (p.modes && p.modes.value !== undefined) {
+      const list = String(p.modes.value).split(",").map(Number).filter(n => [1, 2, 3, 5, 7].includes(n));
+      if (list.join() !== (cfg.modes || []).join()) { cfg.modes = list; needRestart = true; }
+    }
+    num("workres", "workRes"); num("budget", "budget", false); num("speed", "speed", false); num("hold", "hold", false);
+    if (p.shuffle) cfg.shuffle = !!p.shuffle.value;
+    if (p.overlay) cfg.overlay = !!p.overlay.value;
+    if (p.hud) { cfg.hud = !!p.hud.value; hud.style.display = cfg.hud ? "block" : "none"; }
+    if (needRestart && state !== "idle") restart();
+  }
+};
+
+// ---------- Einstellungen aus Datei (settings.js) ----------
+// Das KDE-Plugin reicht bei Web-Wallpapern nur die Standardwerte aus project.json durch.
+// Deshalb schreibt primitive-live-ctl die echten Einstellungen nach settings.js; die haben Vorrang.
+const _applyWE = window.wallpaperPropertyListener.applyUserProperties;
+let weProps = {}, fileProps = {}, lastFileJson = "";
+let baseProps = null;
+function applyAll() {
+  if (!baseProps) baseProps = { mode: { value: cfg.mode }, alpha: { value: cfg.alpha }, shapes: { value: cfg.shapes },
+    workres: { value: cfg.workRes }, budget: { value: cfg.budget }, speed: { value: cfg.speed }, hold: { value: cfg.hold },
+    shuffle: { value: cfg.shuffle }, hud: { value: cfg.hud }, modes: { value: "" }, overlay: { value: cfg.overlay } };
+  _applyWE(Object.assign({}, baseProps, weProps, fileProps));
+}
+window.wallpaperPropertyListener.applyUserProperties = p => { Object.assign(weProps, p); applyAll(); };
+// Befehle vom Widget / primitive-live-ctl: {seq, cmd: "next"|"again", paused}
+let ctlSeq = null;
+function applyControl(c) {
+  if (!c) return;
+  paused = !!c.paused;
+  if (ctlSeq === null) { ctlSeq = c.seq; return; }   // alten Befehl beim Laden nicht wiederholen
+  if (c.seq === ctlSeq) return;
+  ctlSeq = c.seq;
+  if (c.cmd === "next") { state = "idle"; start(); }
+  else if (c.cmd === "again" && curSrc) { state = "idle"; ++generation; startImage(curSrc, true); }
+  else if (c.cmd === "finish" && state === "run") {
+    // restliche Formen ohne Tempolimit fertig rechnen (zeitlich gestückelt, damit nichts hängt)
+    const sp = cfg.speed; cfg.speed = 0;
+    const waitDone = () => { if (state === "run") setTimeout(waitDone, 200); else cfg.speed = sp; };
+    waitDone();
+  }
+}
+
+function pollSettings() {
+  const sc = document.createElement("script");
+  const done = () => {
+    sc.remove();
+    const s = window.PRIMITIVE_SETTINGS || {};
+    const j = JSON.stringify(s);
+    if (j !== lastFileJson) { lastFileJson = j; fileProps = s; applyAll(); }
+    applyControl(window.PRIMITIVE_CONTROL);
+    setTimeout(pollSettings, 2000);
+  };
+  sc.onload = done; sc.onerror = done;
+  window.PRIMITIVE_SETTINGS = undefined;
+  window.PRIMITIVE_CONTROL = undefined;
+  sc.src = "settings.js?t=" + Date.now();
+  document.head.appendChild(sc);
+}
+
+// URL-Parameter zum Testen im Browser, z. B. index.html?mode=3&hud=1
+new URLSearchParams(location.search).forEach((v, k) => {
+  if (k in cfg) cfg[k] = (typeof cfg[k] === "boolean") ? v === "1" || v === "true" : Number(v);
+});
+if (cfg.hud) hud.style.display = "block";
+
+let rt;
+addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(restart, 400); });
+resize();
+start();
+pollSettings();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "title": "LN Plotter",
+  "description": "Mathematische Flächen als Linienzeichnung (fogleman/ln + vpype), live von einem virtuellen Plotterstift gezeichnet.",
+  "file": "index.html",
+  "preview": "preview.jpg",
+  "type": "web",
+  "tags": ["Abstract"],
+  "contentrating": "Everyone",
+  "general": {
+    "properties": {
+      "theme": {
+        "order": 0, "text": "Farbschema", "type": "combo", "value": "papier",
+        "options": [
+          {"label": "Papier", "value": "papier"},
+          {"label": "Nacht", "value": "nacht"},
+          {"label": "Blaupause", "value": "blaupause"},
+          {"label": "Terminal", "value": "terminal"},
+          {"label": "Sonnenuntergang (Verlauf)", "value": "sonnenuntergang"},
+          {"label": "Aquarell (Verlauf)", "value": "aquarell"}
+        ]
+      },
+      "duration": {"order": 1, "text": "Zeichendauer (s)", "type": "slider", "min": 10, "max": 900, "value": 150},
+      "hold":     {"order": 2, "text": "Standzeit fertig (s)", "type": "slider", "min": 0, "max": 600, "value": 40},
+      "width":    {"order": 3, "text": "Strichstärke", "type": "slider", "min": 0.3, "max": 3, "precision": 1, "step": 0.1, "fraction": true, "value": 1.0},
+      "margin":   {"order": 4, "text": "Rand (%)", "type": "slider", "min": 0, "max": 25, "value": 8},
+      "pen":      {"order": 5, "text": "Stift anzeigen", "type": "bool", "value": true},
+      "travel":   {"order": 6, "text": "Leerfahrten andeuten", "type": "bool", "value": false},
+      "label":    {"order": 7, "text": "Formel anzeigen", "type": "bool", "value": true},
+      "shuffle":  {"order": 8, "text": "Zufällige Reihenfolge", "type": "bool", "value": true}
+    }
+  }
+}

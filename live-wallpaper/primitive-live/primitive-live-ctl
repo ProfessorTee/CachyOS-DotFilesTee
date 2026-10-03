@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# primitive-live-ctl – Einstellungen für den Primitive-Live-Wallpaper
+# (das KDE-Plugin gibt die Wallpaper-Eigenschaften nicht an Web-Wallpaper weiter)
+#
+#   primitive-live-ctl                     aktuelle Einstellungen zeigen
+#   primitive-live-ctl set formen ellipsen  einzelnen Wert setzen (wirkt nach ~2 s)
+#   primitive-live-ctl set formen dreiecke,ellipsen   Mischung aus mehreren Formen
+#   primitive-live-ctl edit                Einstellungsdatei im Editor öffnen
+#   primitive-live-ctl reset               Standardwerte
+#   primitive-live-ctl apply               Datei → Wallpaper übertragen (macht der Watcher automatisch)
+#   primitive-live-ctl next | again | finish   nächstes Bild / aktuelles neu / sofort fertig
+#   primitive-live-ctl pause | resume | toggle
+#   primitive-live-ctl sync | open | status    Bilder neu einlesen / Bilderordner öffnen / JSON-Status
+#
+# Werte:  formen      dreiecke | rechtecke | ellipsen | gedrehte-rechtecke | gedrehte-ellipsen | alle
+#                     (Komma-Liste = Mischung)
+#         deckkraft   16–255           anzahl      Formen pro Bild (50–5000)
+#         tempo       Formen/Sekunde, 0 = so schnell wie möglich
+#         aufloesung  80–400 (Rechengenauigkeit)     cpu   ms Rechenzeit pro Frame (2–25)
+#         standzeit   Sekunden, die das fertige Bild stehen bleibt
+#         zufall      ja | nein        fortschritt ja | nein
+#         ueberlagern ja | nein  (neues Bild über das alte malen)
+set -euo pipefail
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/primitive-live"
+FILE="$CONF/einstellungen.conf"
+mkdir -p "$CONF"
+
+defaults() {
+  cat <<'EOF'
+# Primitive Live – Einstellungen
+# Speichern genügt: der Wallpaper übernimmt die Werte nach ca. 2 Sekunden.
+# (Formen, Deckkraft und Auflösung starten das aktuelle Bild neu.)
+
+# dreiecke | rechtecke | ellipsen | gedrehte-rechtecke | gedrehte-ellipsen
+# mehrere mit Komma = Mischung (z. B. dreiecke,ellipsen), "alle" = alle fünf gemischt
+formen=dreiecke
+
+# Deckkraft der Formen, 16–255
+deckkraft=128
+
+# Formen pro Bild (mehr = detailreicher, dauert länger)
+anzahl=600
+
+# Formen pro Sekunde (0 = so schnell wie möglich)
+tempo=8
+
+# Rechenauflösung 80–400 (höher = genauer, mehr CPU)
+aufloesung=200
+
+# Millisekunden Rechenzeit pro Frame (CPU-Last), 2–25
+cpu=10
+
+# Sekunden, die das fertige Bild stehen bleibt
+standzeit=20
+
+# zufällige Reihenfolge der Bilder: ja | nein
+zufall=ja
+
+# Fortschritt unten links anzeigen: ja | nein
+fortschritt=nein
+
+# Neues Bild über das alte malen (statt mit leerer Fläche anzufangen): ja | nein
+ueberlagern=nein
+EOF
+}
+[[ -f "$FILE" ]] || defaults > "$FILE"
+
+STATE="$CONF/control.env"
+SEQ=0 CMD="" PAUSED=0
+# shellcheck disable=SC1090
+[[ -f "$STATE" ]] && source "$STATE"
+
+paths() {
+  [[ -f "$CONF/paths.env" ]] || { echo "Primitive Live ist nicht installiert ($CONF/paths.env fehlt)" >&2; exit 1; }
+  # shellcheck disable=SC1091
+  source "$CONF/paths.env"
+  PICS="${PICS:-$(xdg-user-dir PICTURES 2>/dev/null || echo "$HOME/Bilder")/Primitive}"
+}
+dest() { paths; echo "$DEST"; }
+
+# ganzer Wert bis Kommentar (für Listen wie "dreiecke, ellipsen")
+get_raw() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\([^#]*\).*/\1/p" "$FILE" | tail -1 | sed 's/[[:space:]]*$//'; }
+get() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\([^#[:space:]]*\).*/\1/p" "$FILE" | tail -1; }
+
+num() { # Zahl prüfen + begrenzen
+  local v="$1" lo="$2" hi="$3" def="$4"
+  [[ "$v" =~ ^[0-9]+$ ]] || { echo "$def"; return; }
+  (( v < lo )) && v=$lo; (( v > hi )) && v=$hi; echo "$v"
+}
+bool() { case "${1,,}" in ja|j|yes|y|true|1|an|on) echo true;; *) echo false;; esac; }
+
+apply() {
+  local D; D="$(dest)"
+  local mode list="" f n
+  local -a nums=()
+  IFS=', ' read -ra parts <<< "$(get_raw formen | tr '[:upper:]' '[:lower:]')"
+  for f in "${parts[@]}"; do
+    case "$f" in
+      gemischt|alle|mixed|0) nums=(1 2 3 5 7); break;;
+      dreiecke|dreieck|tri*|1) n=1;; rechtecke|rechteck|rect*|2) n=2;; ellipsen|ellipse|kreise|3) n=3;;
+      gedrehte-rechtecke|rotrect*|5) n=5;; gedrehte-ellipsen|rotellipse*|7) n=7;; *) continue;;
+    esac
+    [[ " ${nums[*]} " == *" $n "* ]] || nums+=("$n")
+  done
+  [[ ${#nums[@]} -eq 0 ]] && nums=(1)
+  if [[ ${#nums[@]} -eq 1 ]]; then mode=${nums[0]}; else mode=0; list=$(IFS=,; echo "${nums[*]}"); fi
+  local js
+  js=$(printf '{"mode":{"value":%s},"modes":{"value":"%s"},"alpha":{"value":%s},"shapes":{"value":%s},"speed":{"value":%s},"workres":{"value":%s},"budget":{"value":%s},"hold":{"value":%s},"shuffle":{"value":%s},"hud":{"value":%s},"overlay":{"value":%s}}' \
+    "$mode" "$list" \
+    "$(num "$(get deckkraft)" 1 255 128)" \
+    "$(num "$(get anzahl)" 10 20000 600)" \
+    "$(num "$(get tempo)" 0 1000 8)" \
+    "$(num "$(get aufloesung)" 40 800 200)" \
+    "$(num "$(get cpu)" 1 40 10)" \
+    "$(num "$(get standzeit)" 0 86400 20)" \
+    "$(bool "$(get zufall)")" \
+    "$(bool "$(get fortschritt)")" \
+    "$(bool "$(get ueberlagern)")")
+  local p=false; [[ $PAUSED == 1 ]] && p=true
+  { echo "window.PRIMITIVE_SETTINGS = $js;"
+    printf 'window.PRIMITIVE_CONTROL = {"seq":%s,"cmd":"%s","paused":%s};\n' "$SEQ" "$CMD" "$p"
+  } > "$D/settings.js.tmp"
+  mv "$D/settings.js.tmp" "$D/settings.js"
+}
+
+save_state() { printf 'SEQ=%s\nCMD=%s\nPAUSED=%s\n' "$SEQ" "$CMD" "$PAUSED" > "$STATE"; }
+send_cmd() { SEQ=$((SEQ+1)); CMD="$1"; save_state; apply; }
+
+case "${1:-show}" in
+  next|again|finish) send_cmd "$1" ;;
+  pause)  PAUSED=1; save_state; apply ;;
+  resume) PAUSED=0; save_state; apply ;;
+  toggle) PAUSED=$((1-PAUSED)); save_state; apply; [[ $PAUSED == 1 ]] && echo paused || echo running ;;
+  sync)
+    paths; "$DEST/add-images.sh" "$PICS" | tail -1 ;;
+  open)
+    paths; xdg-open "$PICS" >/dev/null 2>&1 & ;;
+  status)
+    paths
+    n=$(grep -o '"data:' "$DEST/images.js" 2>/dev/null | wc -l || true)
+    p=false; [[ $PAUSED == 1 ]] && p=true
+    printf '{"paused":%s,"images":%s,"pics":"%s","settings":{' "$p" "${n:-0}" "$PICS"
+    sep=""
+    for k in formen deckkraft anzahl tempo aufloesung cpu standzeit zufall fortschritt ueberlagern; do
+      v="$(get_raw "$k")"; v="${v//\"/}"; v="${v// /}"
+      printf '%s"%s":"%s"' "$sep" "$k" "$v"; sep=","
+    done
+    printf '}}\n' ;;
+  show)
+    grep -v '^[[:space:]]*\(#\|$\)' "$FILE" ;;
+  set)
+    key="${2:?Schlüssel fehlt (z. B. formen)}"; val="${3:?Wert fehlt}"
+    if grep -q "^[[:space:]]*$key[[:space:]]*=" "$FILE"; then
+      sed -i "s|^[[:space:]]*$key[[:space:]]*=.*|$key=$val|" "$FILE"
+    else
+      echo "$key=$val" >> "$FILE"
+    fi
+    apply; echo "$key=$val" ;;
+  reset) defaults > "$FILE"; apply; echo "Standardwerte gesetzt." ;;
+  edit)  ${VISUAL:-${EDITOR:-xdg-open}} "$FILE" ;;
+  apply) apply ;;
+  -h|--help|help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) echo "Unbekannter Befehl: $1 (primitive-live-ctl help)" >&2; exit 1 ;;
+esac

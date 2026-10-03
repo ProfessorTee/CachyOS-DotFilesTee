@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# ln-plotter-ctl – Fernsteuerung für den LN Plotter Wallpaper (wird vom KDE-Widget benutzt)
+#
+#   next | restart | finish          nächste Zeichnung / von vorn / sofort fertig zeichnen
+#   pause | resume | toggle          Stift anhalten / weiter
+#   draw "formel" [stil]             Formel rendern und sofort zeichnen
+#   generate [anzahl]                neue Zufallszeichnungen erzeugen
+#   set <key> [wert]                 theme duration hold width margin pen travel label (ohne Wert = zurücksetzen)
+#   reset                            alle Overrides löschen (Wallpaper-Engine-Werte gelten)
+#   timer on|off                     automatisches Generieren an/aus
+#   add "formel"                     Formel zu formeln.txt hinzufügen
+#   formulas | styles | status       Infos (status als JSON)
+#   edit | open                      formeln.txt bearbeiten / SVG-Ordner öffnen
+set -euo pipefail
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/ln-plotter"
+STATE="$CONF/control.env"
+mkdir -p "$CONF"
+[[ -f "$CONF/paths.env" ]] || { echo "LN Plotter ist nicht installiert ($CONF/paths.env fehlt)" >&2; exit 1; }
+# shellcheck disable=SC1091
+source "$CONF/paths.env"   # DEST, OUT
+FORMELN="$CONF/formeln.txt"
+KEYS=(THEME DURATION HOLD WIDTH MARGIN PEN TRAVEL LABEL)
+
+SEQ=0 CMD="" ARG="" PAUSED=0 LAST="" LASTSTYLE=""
+for k in "${KEYS[@]}"; do printf -v "$k" '%s' ""; done
+# shellcheck disable=SC1090
+[[ -f "$STATE" ]] && source "$STATE"
+
+q() { printf '%q' "$1"; }
+js() { # JSON-String
+  local s="${1//\\/\\\\}"; s="${s//\"/\\\"}"; s="${s//$'\t'/ }"; s="${s//$'\n'/ }"; printf '"%s"' "$s"
+}
+jsval() { [[ -z "$1" ]] && printf 'null' || { [[ "$1" =~ ^-?[0-9.]+$ ]] && printf '%s' "$1" || js "$1"; }; }
+
+save() {
+  {
+    echo "SEQ=$SEQ"; echo "CMD=$(q "$CMD")"; echo "ARG=$(q "$ARG")"; echo "PAUSED=$PAUSED"
+    echo "LAST=$(q "$LAST")"; echo "LASTSTYLE=$(q "$LASTSTYLE")"
+    for k in "${KEYS[@]}"; do echo "$k=$(q "${!k}")"; done
+  } > "$STATE.tmp" && mv "$STATE.tmp" "$STATE"
+  local settings="" sep=""
+  for k in "${KEYS[@]}"; do settings+="$sep\"${k,,}\":$(jsval "${!k}")"; sep=","; done
+  local p=false; [[ $PAUSED == 1 ]] && p=true
+  printf 'window.LN_CONTROL = {"seq":%s,"cmd":%s,"arg":%s,"paused":%s,"settings":{%s}};\n' \
+    "$SEQ" "$(js "$CMD")" "$(js "$ARG")" "$p" "$settings" > "$DEST/control.js.tmp"
+  mv "$DEST/control.js.tmp" "$DEST/control.js"
+}
+cmd() { SEQ=$((SEQ+1)); CMD="$1"; ARG="${2:-}"; save; }
+
+timer_active() { systemctl --user is-active --quiet ln-plotter-gen.timer 2>/dev/null && echo true || echo false; }
+
+case "${1:-status}" in
+  next|restart|finish) cmd "$1" ;;
+  pause)  PAUSED=1; save ;;
+  resume) PAUSED=0; save ;;
+  toggle) PAUSED=$((1-PAUSED)); save; [[ $PAUSED == 1 ]] && echo paused || echo running ;;
+  draw)
+    f="${2:?Formel fehlt}"; s="${3:-}"
+    LN_OUT="$OUT" LN_FORMELN="$FORMELN" "$DEST/generate.sh" -f "$f" ${s:+-s "$s"} 1 > "$CONF/.draw.out" 2> "$CONF/.draw.err" || {
+      sed 's/^Formel-Fehler: //' "$CONF/.draw.err" >&2; exit 1; }
+    name="$(tail -1 "$CONF/.draw.out")"
+    LAST="$f"; LASTSTYLE="$s"; PAUSED=0
+    cmd show "$name"; echo "$name" ;;
+  generate)
+    LN_OUT="$OUT" LN_FORMELN="$FORMELN" "$DEST/generate.sh" "${2:-3}" >/dev/null && echo ok ;;
+  set)
+    key="${2:?Schlüssel fehlt}"; K="${key^^}"
+    [[ " ${KEYS[*]} " == *" $K "* ]] || { echo "Unbekannt: $key" >&2; exit 1; }
+    printf -v "$K" '%s' "${3:-}"; save ;;
+  reset) for k in "${KEYS[@]}"; do printf -v "$k" '%s' ""; done; save ;;
+  timer)
+    case "${2:-}" in
+      on)  systemctl --user enable --now ln-plotter-gen.timer >/dev/null 2>&1 ;;
+      off) systemctl --user disable --now ln-plotter-gen.timer >/dev/null 2>&1 ;;
+    esac; timer_active ;;
+  add)
+    f="${2:?Formel fehlt}"
+    "$DEST/lnart" render -q -f "$f" -res 40 -lines 4 -o /dev/null 2>/dev/null || { echo "Ungültige Formel" >&2; exit 1; }
+    grep -qxF -- "$f" "$FORMELN" 2>/dev/null || echo "$f" >> "$FORMELN"; echo ok ;;
+  formulas) grep -v '^[[:space:]]*\(#\|$\)' "$FORMELN" 2>/dev/null || "$DEST/lnart" list ;;
+  styles) printf '%s\n' grid x y diag radial rings spiral contour ;;
+  edit) xdg-open "$FORMELN" >/dev/null 2>&1 & ;;
+  open) xdg-open "$OUT" >/dev/null 2>&1 & ;;
+  status)
+    shopt -s nullglob; svgs=("$OUT"/*.svg); n=${#svgs[@]}
+    vp=false; { command -v vpype >/dev/null || [[ -x "$HOME/.local/bin/vpype" ]]; } && vp=true
+    settings="" sep=""
+    for k in "${KEYS[@]}"; do settings+="$sep\"${k,,}\":$(jsval "${!k}")"; sep=","; done
+    p=false; [[ $PAUSED == 1 ]] && p=true
+    printf '{"paused":%s,"drawings":%s,"timer":%s,"vpype":%s,"last":%s,"lastStyle":%s,"settings":{%s},"out":%s}\n' \
+      "$p" "$n" "$(timer_active)" "$vp" "$(js "$LAST")" "$(js "$LASTSTYLE")" "$settings" "$(js "$OUT")" ;;
+  -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) echo "Unbekannter Befehl: $1 (ln-plotter-ctl help)" >&2; exit 1 ;;
+esac

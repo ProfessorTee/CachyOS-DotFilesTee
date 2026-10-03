@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LN Plotter</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper, #f1ece1); transition: background 2s; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #fade { transition: opacity 2.5s ease; pointer-events: none; }
+  #label { position: fixed; right: 3vw; bottom: 3vh; font: 13px/1.5 "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+           color: var(--ink, #222); opacity: 0; transition: opacity 1.5s; text-align: right; white-space: pre; letter-spacing: .02em; }
+  #label.show { opacity: .55; }
+</style>
+</head>
+<body>
+<canvas id="ink"></canvas>
+<canvas id="pen"></canvas>
+<canvas id="fade"></canvas>
+<div id="label"></div>
+<script src="drawings.js"></script>
+<script>
+"use strict";
+const THEMES = {
+  papier:    { paper: "#f1ece1", ink: "#1f1d1a", ink2: "#1f1d1a" },
+  nacht:     { paper: "#0d1015", ink: "#d9dee8", ink2: "#d9dee8" },
+  blaupause: { paper: "#0c2c4f", ink: "#d6e8ff", ink2: "#d6e8ff" },
+  terminal:  { paper: "#050805", ink: "#3dff8a", ink2: "#3dff8a" },
+  sonnenuntergang: { paper: "#14101c", ink: "#ff7a59", ink2: "#7a6cff" },
+  aquarell:  { paper: "#f4f1ea", ink: "#2b5f8a", ink2: "#c0484f" },
+};
+const cfg = {
+  theme: "papier",
+  duration: 150,    // Sekunden pro Zeichnung
+  hold: 40,         // Standzeit fertige Zeichnung
+  width: 1.0,       // Strichstärke (px, wird mit DPR multipliziert)
+  margin: 8,        // Rand in %
+  pen: true,        // Stift sichtbar
+  travel: false,    // Leerfahrten andeuten
+  label: true,      // Formel anzeigen
+  shuffle: true,
+};
+
+const ink = document.getElementById("ink"), pen = document.getElementById("pen"), fade = document.getElementById("fade");
+const ictx = ink.getContext("2d"), pctx = pen.getContext("2d"), fctx = fade.getContext("2d");
+const label = document.getElementById("label");
+let drawings = window.LN_DRAWINGS || [], bag = [], idx = -1;
+let cur = null, state = "idle", holdUntil = 0, lastT = 0;
+let dpr = 1;
+
+function theme() { return THEMES[cfg.theme] || THEMES.papier; }
+function applyTheme() {
+  const t = theme();
+  document.documentElement.style.setProperty("--paper", t.paper);
+  document.documentElement.style.setProperty("--ink", t.ink);
+}
+function hex(c) { const n = parseInt(c.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+function mix(a, b, t) { const A = hex(a), B = hex(b); return `rgb(${A.map((v, i) => Math.round(v + (B[i] - v) * t))})`; }
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  for (const c of [ink, pen, fade]) { c.width = Math.round(innerWidth * dpr); c.height = Math.round(innerHeight * dpr); }
+}
+
+function reloadDrawings(cb) {
+  const sc = document.createElement("script");
+  const done = () => {
+    sc.remove();
+    const list = window.LN_DRAWINGS || [];
+    if (list.length && (list.length !== drawings.length || list[0] !== drawings[0])) { drawings = list; bag = []; }
+    cb();
+  };
+  sc.onload = done; sc.onerror = done;
+  sc.src = "drawings.js?t=" + Date.now();
+  document.head.appendChild(sc);
+}
+
+function pick() {
+  if (!drawings.length) return null;
+  if (cfg.shuffle && drawings.length > 1) {
+    if (!bag.length) {
+      bag = drawings.map((_, i) => i);
+      for (let i = bag.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [bag[i], bag[j]] = [bag[j], bag[i]]; }
+      if (bag[bag.length - 1] === idx) bag.unshift(bag.pop());
+    }
+    idx = bag.pop();
+  } else idx = (idx + 1) % drawings.length;
+  return drawings[idx];
+}
+
+// Zeichnung auf Bildschirm einpassen (Bounding Box, zentriert, Rand)
+function prepare(d) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of d.p) for (let i = 0; i < p.length; i += 2) {
+    if (p[i] < x0) x0 = p[i]; if (p[i] > x1) x1 = p[i];
+    if (p[i + 1] < y0) y0 = p[i + 1]; if (p[i + 1] > y1) y1 = p[i + 1];
+  }
+  const W = ink.width, H = ink.height, m = cfg.margin / 100;
+  const s = Math.min(W * (1 - 2 * m) / (x1 - x0), H * (1 - 2 * m) / (y1 - y0));
+  const ox = (W - (x1 - x0) * s) / 2 - x0 * s, oy = (H - (y1 - y0) * s) / 2 - y0 * s;
+  const paths = d.p.map(p => { const q = new Float32Array(p.length); for (let i = 0; i < p.length; i += 2) { q[i] = p[i] * s + ox; q[i + 1] = p[i + 1] * s + oy; } return q; });
+  let total = 0;
+  for (const q of paths) for (let i = 2; i < q.length; i += 2) total += Math.hypot(q[i] - q[i - 2], q[i + 1] - q[i - 1]);
+  return { paths, total, pi: 0, vi: 0, drawn: 0, meta: d.meta, px: paths[0][0], py: paths[0][1] };
+}
+
+function start() { reloadDrawings(begin); }
+
+function begin(forced) {
+  const d = forced || pick();
+  if (!d) { label.textContent = "Noch keine Zeichnungen – der Generator läuft gleich"; label.classList.add("show"); setTimeout(start, 15000); return; }
+  // alte Zeichnung ausblenden
+  fctx.clearRect(0, 0, fade.width, fade.height);
+  fctx.drawImage(ink, 0, 0);
+  fade.style.transition = "none"; fade.style.opacity = 1; void fade.offsetWidth;
+  fade.style.transition = ""; fade.style.opacity = 0;
+  ictx.clearRect(0, 0, ink.width, ink.height);
+  label.classList.remove("show");
+  cur = prepare(d);
+  state = "draw";
+  lastT = 0;
+  if (cfg.label && cur.meta) {
+    const m = cur.meta;
+    let f = m.formel.replace(/\*/g, "·");
+    setTimeout(() => {
+      label.textContent = `z = ${f}\na=${(+m.a).toFixed(2)}  b=${(+m.b).toFixed(2)}  c=${(+m.c).toFixed(2)}  ·  ${m.style}`;
+      label.classList.add("show");
+    }, 1200);
+  }
+}
+
+// zeichnet `budget` Pixel Linienlänge weiter
+function advance(budget, showTravel) {
+  const t = theme();
+  ictx.lineWidth = cfg.width * dpr;
+  ictx.lineCap = "round"; ictx.lineJoin = "round";
+  let open = false;
+  const stroke = () => {
+    ictx.strokeStyle = t.ink === t.ink2 ? t.ink : mix(t.ink, t.ink2, cur.drawn / cur.total);
+    ictx.stroke(); ictx.beginPath(); open = false;
+  };
+  ictx.beginPath();
+  while (budget > 0 && cur.pi < cur.paths.length) {
+    const q = cur.paths[cur.pi];
+    if (cur.vi === 0) { // Stift absetzen
+      if (showTravel && cfg.travel) {
+        pctx.save(); pctx.setLineDash([3 * dpr, 6 * dpr]); pctx.strokeStyle = t.ink; pctx.globalAlpha = .25;
+        pctx.beginPath(); pctx.moveTo(cur.px, cur.py); pctx.lineTo(q[0], q[1]); pctx.stroke(); pctx.restore();
+      }
+      cur.px = q[0]; cur.py = q[1]; cur.vi = 2;
+    }
+    if (!open) { ictx.moveTo(cur.px, cur.py); open = true; }
+    while (cur.vi < q.length && budget > 0) {
+      const nx = q[cur.vi], ny = q[cur.vi + 1];
+      const L = Math.hypot(nx - cur.px, ny - cur.py);
+      if (L <= budget) {
+        ictx.lineTo(nx, ny); budget -= L; cur.drawn += L;
+        cur.px = nx; cur.py = ny; cur.vi += 2;
+      } else {
+        const f = budget / L;
+        cur.px += (nx - cur.px) * f; cur.py += (ny - cur.py) * f;
+        ictx.lineTo(cur.px, cur.py); cur.drawn += budget; budget = 0;
+      }
+    }
+    if (cur.vi >= q.length) { cur.pi++; cur.vi = 0; stroke(); }
+  }
+  if (open) stroke();
+}
+
+function drawPen() {
+  const t = theme();
+  pctx.fillStyle = t.ink === t.ink2 ? t.ink : mix(t.ink, t.ink2, cur.drawn / cur.total);
+  pctx.globalAlpha = .9;
+  pctx.beginPath(); pctx.arc(cur.px, cur.py, 2.6 * dpr, 0, Math.PI * 2); pctx.fill();
+  pctx.globalAlpha = .18; pctx.beginPath(); pctx.arc(cur.px, cur.py, 9 * dpr, 0, Math.PI * 2); pctx.fill();
+  pctx.globalAlpha = 1;
+}
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  const gap = lastT ? now - lastT : 0;
+  const dt = Math.min(0.1, gap / 1000);
+  lastT = now;
+  // Lücke > 250 ms = Seite war eingefroren (Vollbild-Pause des Plugins): Standzeit verlängern,
+  // Stift macht genau dort weiter, wo er war.
+  if (gap > 250) {
+    if (state === "hold") holdUntil += gap;
+    return;
+  }
+  pctx.clearRect(0, 0, pen.width, pen.height);
+  if (paused) {
+    if (state === "hold") holdUntil += dt * 1000;
+    if (cur && state === "draw" && cfg.pen) drawPen();
+    return;
+  }
+  if (state === "draw" && cur) {
+    advance(cur.total / Math.max(5, cfg.duration) * dt, true);
+    if (cfg.pen) drawPen();
+    if (cur.pi >= cur.paths.length) { state = "hold"; holdUntil = now + cfg.hold * 1000; }
+  } else if (state === "hold" && now > holdUntil) {
+    state = "idle"; start();
+  }
+}
+
+// bei Größen-/Stiländerung: neu einpassen und bisherigen Fortschritt sofort nachzeichnen
+function redrawCurrent() {
+  if (!cur || idx < 0 || !drawings[idx]) return;
+  const frac = cur.drawn / cur.total;
+  cur = prepare(drawings[idx]);
+  ictx.clearRect(0, 0, ink.width, ink.height);
+  advance(frac * cur.total + (frac >= 1 ? 1 : 0), false);
+}
+
+window.wallpaperPropertyListener = {
+  applyUserProperties(p) {
+    const v = k => p[k] && p[k].value !== undefined ? p[k].value : undefined;
+    let redraw = false;
+    if (v("theme") !== undefined) { cfg.theme = v("theme"); applyTheme(); redraw = true; }
+    for (const k of ["duration", "hold", "width", "margin"]) if (v(k) !== undefined) { cfg[k] = Number(v(k)); if (k === "width" || k === "margin") redraw = true; }
+    for (const k of ["pen", "travel", "label", "shuffle"]) if (v(k) !== undefined) cfg[k] = !!v(k);
+    if (v("label") !== undefined && !cfg.label) label.classList.remove("show");
+    if (redraw && cur) redrawCurrent();
+  }
+};
+
+new URLSearchParams(location.search).forEach((val, k) => {
+  if (!(k in cfg)) return;
+  cfg[k] = typeof cfg[k] === "boolean" ? (val === "1" || val === "true") : typeof cfg[k] === "number" ? Number(val) : val;
+});
+
+// ---------- Fernsteuerung (KDE-Widget / ln-plotter-ctl schreibt control.js) ----------
+let paused = false, ctlSeq = null, weCfg = null;
+function pollControl() {
+  const sc = document.createElement("script");
+  const done = () => { sc.remove(); applyControl(window.LN_CONTROL); setTimeout(pollControl, 1200); };
+  sc.onload = done; sc.onerror = done;
+  window.LN_CONTROL = undefined;
+  sc.src = "control.js?t=" + Date.now();
+  document.head.appendChild(sc);
+}
+function applyControl(c) {
+  if (!c) return;
+  if (!weCfg) weCfg = Object.assign({}, cfg); // Werte aus Wallpaper Engine merken
+  // Einstellungen: gesetzte Werte überschreiben, leere fallen auf Wallpaper-Engine-Werte zurück
+  const st = c.settings || {};
+  let redraw = false, themeChanged = false;
+  for (const k of ["theme", "duration", "hold", "width", "margin", "pen", "travel", "label"]) {
+    const want = (st[k] === undefined || st[k] === null || st[k] === "") ? weCfg[k]
+      : typeof cfg[k] === "boolean" ? !!st[k] : typeof cfg[k] === "number" ? Number(st[k]) : st[k];
+    if (want !== cfg[k]) {
+      cfg[k] = want;
+      if (k === "theme") themeChanged = true;
+      if (k === "width" || k === "margin" || k === "theme") redraw = true;
+      if (k === "label") label.classList.toggle("show", !!want && !!cur);
+    }
+  }
+  if (themeChanged) applyTheme();
+  if (redraw && cur) redrawCurrent();
+  paused = !!c.paused;
+  // Befehle nur bei neuer Sequenznummer (und nicht beim allerersten Laden)
+  if (ctlSeq === null) { ctlSeq = c.seq; return; }
+  if (c.seq === ctlSeq) return;
+  ctlSeq = c.seq;
+  if (c.cmd === "next") { paused = !!c.paused; start(); }
+  else if (c.cmd === "restart" && cur && idx >= 0) begin(drawings[idx]);
+  else if (c.cmd === "finish" && cur) { advance(cur.total + 1, false); }
+  else if (c.cmd === "show" && c.arg) {
+    reloadDrawings(() => {
+      const i = drawings.findIndex(d => d.n === c.arg);
+      if (i >= 0) { idx = i; begin(drawings[i]); } else start();
+    });
+  }
+}
+// Wallpaper-Engine-Änderungen auch als neue Basis merken
+const _apply = window.wallpaperPropertyListener.applyUserProperties;
+window.wallpaperPropertyListener.applyUserProperties = p => {
+  _apply(p);
+  if (!weCfg) weCfg = Object.assign({}, cfg);
+  for (const k in p) if (k in cfg) weCfg[k] = cfg[k];
+};
+
+let rt;
+addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { resize(); redrawCurrent(); }, 300); });
+applyTheme();
+resize();
+start();
+pollControl();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
