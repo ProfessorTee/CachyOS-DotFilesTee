@@ -21,6 +21,9 @@ PlasmoidItem {
     property string error: ""
     property string info: ""
     property bool busy: false
+    property var files: []           // eingebettete Bilder (Pfade) für die Vorschau
+    property string current: ""      // zuletzt angeklicktes Bild
+    property bool more: false        // "Mehr"-Bereich offen
 
     readonly property string ctl: "\"$HOME/.local/bin/primitive-live-ctl\""
     readonly property var shapes: [
@@ -90,6 +93,10 @@ PlasmoidItem {
     }
     function setValue(key, value) { root.error = ""; call("set " + key + " " + sq(value)) }
 
+    function loadFiles() {
+        exe.run("list", (code, out) => { if (code === 0) root.files = out.split("\n").filter(l => l.length) })
+    }
+
     function refresh() {
         exe.run("status", (code, out) => {
             if (code !== 0) { root.error = "primitive-live-ctl nicht gefunden – install.sh ausführen"; return }
@@ -116,8 +123,8 @@ PlasmoidItem {
         }
     ]
 
-    Component.onCompleted: refresh()
-    onExpandedChanged: if (expanded) refresh()
+    Component.onCompleted: { refresh(); loadFiles() }
+    onExpandedChanged: if (expanded) { refresh(); loadFiles() }
     Timer { interval: 4000; repeat: true; running: root.expanded; onTriggered: root.refresh() }
 
     // ---------- Panel-Icon ----------
@@ -136,8 +143,8 @@ PlasmoidItem {
         }
     }
 
-    // Slider mit Beschriftung, schreibt beim Loslassen
-    component SettingSlider: RowLayout {
+    // kompakter Regler: kleine Beschriftung, Wert rechts, schreibt beim Loslassen
+    component MiniSlider: RowLayout {
         id: row
         property string label
         property string key
@@ -147,7 +154,8 @@ PlasmoidItem {
         property int fallback: 0
         property var format: v => String(v)
         Layout.fillWidth: true
-        PC3.Label { text: row.label; Layout.preferredWidth: Kirigami.Units.gridUnit * 5.5; elide: Text.ElideRight }
+        spacing: Kirigami.Units.smallSpacing
+        PC3.Label { text: row.label; font: Kirigami.Theme.smallFont; opacity: 0.75; Layout.preferredWidth: Kirigami.Units.gridUnit * 4 }
         PC3.Slider {
             id: sl
             Layout.fillWidth: true
@@ -157,177 +165,190 @@ PlasmoidItem {
         }
         PC3.Label {
             text: row.format(Math.round(sl.value))
-            Layout.preferredWidth: Kirigami.Units.gridUnit * 3.5
+            font: Kirigami.Theme.smallFont
+            Layout.preferredWidth: Kirigami.Units.gridUnit * 2.6
             horizontalAlignment: Text.AlignRight
         }
     }
+    component IconBtn: PC3.ToolButton {
+        display: PC3.AbstractButton.IconOnly
+        QQC2.ToolTip.text: text
+        QQC2.ToolTip.visible: hovered
+        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+    }
 
-    // ---------- Popup ----------
+    // ---------- Popup (kompakt) ----------
     fullRepresentation: PlasmaExtras.Representation {
-        Layout.preferredWidth: Kirigami.Units.gridUnit * 22
-        Layout.preferredHeight: Kirigami.Units.gridUnit * 30
-        Layout.minimumWidth: Kirigami.Units.gridUnit * 18
-        Layout.minimumHeight: Kirigami.Units.gridUnit * 20
+        Layout.preferredWidth: Kirigami.Units.gridUnit * 17
+        Layout.preferredHeight: col.implicitHeight + Kirigami.Units.largeSpacing * 2
+        Layout.minimumWidth: Kirigami.Units.gridUnit * 14
+        Layout.maximumHeight: Kirigami.Units.gridUnit * 34
 
-        header: PlasmaExtras.PlasmoidHeading {
+        ColumnLayout {
+            id: col
+            anchors.fill: parent
+            spacing: Kirigami.Units.smallSpacing
+
+            // Zeile 1: Status + Steuerung
             RowLayout {
-                anchors.fill: parent
-                Kirigami.Icon { source: "draw-triangle"; Layout.preferredWidth: Kirigami.Units.iconSizes.medium; Layout.preferredHeight: Layout.preferredWidth }
-                ColumnLayout {
-                    spacing: 0
+                Layout.fillWidth: true
+                spacing: 0
+                PC3.Label {
                     Layout.fillWidth: true
-                    PlasmaExtras.Heading { level: 3; text: "Primitive Live" }
-                    PC3.Label {
-                        Layout.fillWidth: true
-                        opacity: 0.7
-                        font: Kirigami.Theme.smallFont
-                        elide: Text.ElideRight
-                        text: (root.paused ? "⏸ pausiert" : "✎ malt") + " · " + root.images + (root.images === 1 ? " Bild" : " Bilder")
-                    }
+                    elide: Text.ElideRight
+                    font: Kirigami.Theme.smallFont
+                    opacity: 0.75
+                    text: (root.paused ? "⏸ " : "✎ ") + root.images + " Bilder"
+                }
+                IconBtn { icon.name: "view-refresh"; text: "Aktuelles Bild neu malen"; onClicked: root.call("again") }
+                IconBtn {
+                    icon.name: root.paused ? "media-playback-start" : "media-playback-pause"
+                    text: root.paused ? "Weiter" : "Pause"
+                    onClicked: root.call("toggle")
+                }
+                IconBtn { icon.name: "media-seek-forward"; text: "Sofort fertig malen"; onClicked: root.call("finish") }
+                IconBtn { icon.name: "media-skip-forward"; text: "Nächstes Bild"; onClicked: root.call("next") }
+                IconBtn {
+                    icon.name: root.more ? "arrow-up" : "configure"
+                    text: root.more ? "Weniger" : "Mehr Einstellungen"
+                    checkable: true; checked: root.more
+                    onToggled: root.more = checked
                 }
             }
-        }
 
-        PC3.ScrollView {
-            id: scroll
-            anchors.fill: parent
-            contentWidth: availableWidth
-
-            ColumnLayout {
-                width: scroll.availableWidth
-                spacing: Kirigami.Units.smallSpacing
-
-                // --- Steuerung ---
-                RowLayout {
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: Kirigami.Units.smallSpacing
+            // Zeile 2: Formen als Symbol-Schalter
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                Repeater {
+                    model: root.shapes
                     PC3.ToolButton {
-                        icon.name: "view-refresh"; display: PC3.AbstractButton.IconOnly
-                        text: "Aktuelles Bild neu malen"
-                        QQC2.ToolTip.text: text; QQC2.ToolTip.visible: hovered
-                        onClicked: root.call("again")
-                    }
-                    PC3.Button {
-                        icon.name: root.paused ? "media-playback-start" : "media-playback-pause"
-                        text: root.paused ? "Weiter" : "Pause"
-                        onClicked: root.call("toggle")
-                    }
-                    PC3.ToolButton {
-                        icon.name: "media-seek-forward"; display: PC3.AbstractButton.IconOnly
-                        text: "Sofort fertig malen"
-                        QQC2.ToolTip.text: text; QQC2.ToolTip.visible: hovered
-                        onClicked: root.call("finish")
-                    }
-                    PC3.Button {
-                        icon.name: "media-skip-forward"; text: "Nächstes"
-                        onClicked: root.call("next")
-                    }
-                }
-
-                // --- Formen ---
-                Kirigami.Heading { level: 4; text: "Formen"; Layout.topMargin: Kirigami.Units.largeSpacing }
-                GridLayout {
-                    Layout.fillWidth: true
-                    columns: 3
-                    columnSpacing: Kirigami.Units.smallSpacing
-                    rowSpacing: Kirigami.Units.smallSpacing
-                    Repeater {
-                        model: root.shapes
-                        PC3.Button {
-                            Layout.fillWidth: true
-                            Layout.preferredWidth: 1     // gleich breite Spalten
-                            // nicht "checkable": der Zustand kommt immer aus root.shapeSet
-                            checked: root.shapeSet.indexOf(modelData.value) >= 0
-                            text: modelData.sym + "  " + modelData.label
-                            onClicked: root.toggleShape(modelData.value)
-                        }
-                    }
-                    PC3.Button {
                         Layout.fillWidth: true
-                        Layout.preferredWidth: 1
-                        readonly property bool all: root.shapeSet.length === root.allShapes.length
-                        checked: all
-                        text: "✦  Alle"
-                        QQC2.ToolTip.text: all ? "Nur noch Dreiecke" : "Alle Formen mischen"
+                        text: modelData.sym
+                        font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
+                        checked: root.shapeSet.indexOf(modelData.value) >= 0
+                        onClicked: root.toggleShape(modelData.value)
+                        QQC2.ToolTip.text: modelData.label + (checked ? " (an)" : " (aus)")
                         QQC2.ToolTip.visible: hovered
-                        onClicked: root.writeShapes(all ? ["dreiecke"] : root.allShapes)
+                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
                 }
-                PC3.Label {
+                PC3.ToolButton {
                     Layout.fillWidth: true
-                    opacity: 0.6
-                    font: Kirigami.Theme.smallFont
-                    wrapMode: Text.Wrap
-                    text: root.shapeSet.length > 1 ? "Mischung aus " + root.shapeSet.length + " Formen – Klick schaltet einzeln an/aus"
-                                                   : "Klick auf weitere Formen, um sie dazuzumischen"
+                    readonly property bool all: root.shapeSet.length === root.allShapes.length
+                    text: "✦"
+                    font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.2
+                    checked: all
+                    onClicked: root.writeShapes(all ? ["dreiecke"] : root.allShapes)
+                    QQC2.ToolTip.text: all ? "Nur noch Dreiecke" : "Alle Formen mischen"
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                 }
+            }
 
-                // --- Werte ---
-                Kirigami.Heading { level: 4; text: "Malen"; Layout.topMargin: Kirigami.Units.largeSpacing }
-                SettingSlider { label: "Deckkraft"; key: "deckkraft"; from: 16; to: 255; fallback: 128; format: v => Math.round(v / 2.55) + " %" }
-                SettingSlider { label: "Formen/Bild"; key: "anzahl"; from: 50; to: 5000; stepSize: 50; fallback: 600 }
-                SettingSlider { label: "Tempo"; key: "tempo"; from: 0; to: 60; fallback: 8; format: v => v === 0 ? "max" : v + "/s" }
-                SettingSlider { label: "Standzeit"; key: "standzeit"; from: 0; to: 300; stepSize: 5; fallback: 20; format: v => v + " s" }
+            // Zeile 3: die wichtigsten Regler
+            MiniSlider { label: "Deckkraft"; key: "deckkraft"; from: 16; to: 255; fallback: 128; format: v => Math.round(v / 2.55) + "%" }
+            MiniSlider { label: "Formen"; key: "anzahl"; from: 50; to: 5000; stepSize: 50; fallback: 600 }
+            MiniSlider { label: "Tempo"; key: "tempo"; from: 0; to: 60; fallback: 8; format: v => v === 0 ? "max" : v + "/s" }
 
-                Kirigami.Heading { level: 4; text: "Leistung"; Layout.topMargin: Kirigami.Units.largeSpacing }
-                SettingSlider { label: "Genauigkeit"; key: "aufloesung"; from: 80; to: 400; stepSize: 10; fallback: 200; format: v => v + " px" }
-                SettingSlider { label: "CPU/Frame"; key: "cpu"; from: 2; to: 25; fallback: 10; format: v => v + " ms" }
-
+            // "Mehr": seltener gebrauchte Einstellungen
+            ColumnLayout {
+                visible: root.more
+                Layout.fillWidth: true
+                spacing: Kirigami.Units.smallSpacing
+                MiniSlider { label: "Standzeit"; key: "standzeit"; from: 0; to: 300; stepSize: 5; fallback: 20; format: v => v + "s" }
+                MiniSlider { label: "Genauigkeit"; key: "aufloesung"; from: 80; to: 400; stepSize: 10; fallback: 200 }
+                MiniSlider { label: "CPU/Frame"; key: "cpu"; from: 2; to: 25; fallback: 10; format: v => v + "ms" }
                 Flow {
                     Layout.fillWidth: true
-                    spacing: Kirigami.Units.largeSpacing
+                    spacing: Kirigami.Units.smallSpacing
+                    PC3.CheckBox { text: "Zufall"; font: Kirigami.Theme.smallFont; checked: root.yes("zufall", true); onToggled: root.setValue("zufall", checked ? "ja" : "nein") }
                     PC3.CheckBox {
-                        text: "Zufällige Reihenfolge"
-                        checked: root.yes("zufall", true)
-                        onToggled: root.setValue("zufall", checked ? "ja" : "nein")
+                        text: "Überlagern"; font: Kirigami.Theme.smallFont
+                        checked: root.yes("ueberlagern", false); onToggled: root.setValue("ueberlagern", checked ? "ja" : "nein")
+                        QQC2.ToolTip.text: "Nächstes Bild über das aktuelle malen"; QQC2.ToolTip.visible: hovered
                     }
                     PC3.CheckBox {
-                        text: "Überlagern"
-                        checked: root.yes("ueberlagern", false)
-                        onToggled: root.setValue("ueberlagern", checked ? "ja" : "nein")
-                        QQC2.ToolTip.text: "Das nächste Bild wird über das aktuelle gemalt – es verwandelt sich Form für Form"
-                        QQC2.ToolTip.visible: hovered
+                        text: "Ganzes Bild"; font: Kirigami.Theme.smallFont
+                        checked: (root.s.anpassung || "passend") !== "fuellen"
+                        onToggled: root.setValue("anpassung", checked ? "passend" : "fuellen")
+                        QQC2.ToolTip.text: "An: ganzes Bild zeigen (Rand weich gefüllt) · Aus: Bildschirm füllen (beschneiden)"; QQC2.ToolTip.visible: hovered
                     }
-                    PC3.CheckBox {
-                        text: "Fortschritt anzeigen"
-                        checked: root.yes("fortschritt", false)
-                        onToggled: root.setValue("fortschritt", checked ? "ja" : "nein")
-                    }
+                    PC3.CheckBox { text: "Fortschritt"; font: Kirigami.Theme.smallFont; checked: root.yes("fortschritt", false); onToggled: root.setValue("fortschritt", checked ? "ja" : "nein") }
                 }
-
-                PC3.Label {
-                    Layout.fillWidth: true
-                    visible: root.error || root.info
-                    wrapMode: Text.Wrap
-                    font: Kirigami.Theme.smallFont
-                    color: root.error ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.positiveTextColor
-                    text: root.error || root.info
-                }
-
-                // --- Bilder ---
-                Kirigami.Heading { level: 4; text: "Bilder"; Layout.topMargin: Kirigami.Units.largeSpacing }
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.bottomMargin: Kirigami.Units.smallSpacing
-                    PC3.Button {
-                        icon.name: "folder-pictures"; text: "Ordner"
-                        onClicked: { root.call("open"); root.expanded = false }
+                    spacing: 0
+                    IconBtn { icon.name: "folder-pictures"; text: "Bilderordner öffnen"; onClicked: { root.call("open"); root.expanded = false } }
+                    IconBtn {
+                        icon.name: "view-refresh"; text: "Bilder neu einlesen"; enabled: !root.busy
+                        onClicked: { root.busy = true; root.call("sync", (code, out) => { root.busy = false; root.info = out; root.loadFiles() }) }
                     }
-                    PC3.Button {
-                        icon.name: "view-refresh"; text: "Neu einlesen"
-                        enabled: !root.busy
-                        onClicked: {
-                            root.busy = true; root.error = ""; root.info = ""
-                            root.call("sync", (code, out) => { root.busy = false; if (code === 0) root.info = out })
+                    IconBtn { icon.name: "document-edit"; text: "Einstellungsdatei bearbeiten"; onClicked: { root.call("edit"); root.expanded = false } }
+                    Item { Layout.fillWidth: true }
+                    IconBtn { icon.name: "edit-undo"; text: "Standardwerte"; onClicked: root.call("reset") }
+                }
+            }
+
+            PC3.Label {
+                Layout.fillWidth: true
+                visible: text.length > 0
+                wrapMode: Text.Wrap
+                font: Kirigami.Theme.smallFont
+                color: root.error ? Kirigami.Theme.negativeTextColor : Kirigami.Theme.positiveTextColor
+                text: root.error || root.info
+            }
+
+            Kirigami.Separator { Layout.fillWidth: true }
+
+            // Vorschau der Bilder – Klick malt genau dieses Bild
+            GridView {
+                id: grid
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(Math.ceil(count / Math.max(1, Math.floor(width / cellWidth))) * cellHeight,
+                                                 cellHeight * 3)
+                clip: true
+                readonly property int cols: Math.max(3, Math.floor(width / (Kirigami.Units.gridUnit * 3.6)))
+                cellWidth: Math.floor(width / cols)
+                cellHeight: cellWidth
+                model: root.files
+                QQC2.ScrollBar.vertical: PC3.ScrollBar {}
+                delegate: Item {
+                    width: grid.cellWidth; height: grid.cellHeight
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        radius: Kirigami.Units.smallSpacing
+                        color: "transparent"
+                        border.width: root.current === modelData ? 2 : (ma.containsMouse ? 1 : 0)
+                        border.color: Kirigami.Theme.highlightColor
+                        Image {
+                            anchors.fill: parent
+                            anchors.margins: 2
+                            source: "file://" + modelData
+                            sourceSize.width: 160; sourceSize.height: 160
+                            fillMode: Image.PreserveAspectCrop
+                            asynchronous: true
+                            cache: true
+                            smooth: true
                         }
                     }
-                    Item { Layout.fillWidth: true }
-                    PC3.ToolButton {
-                        icon.name: "edit-undo"; display: PC3.AbstractButton.IconOnly
-                        text: "Standardwerte"
-                        QQC2.ToolTip.text: text; QQC2.ToolTip.visible: hovered
-                        onClicked: root.call("reset")
+                    MouseArea {
+                        id: ma
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: { root.current = modelData; root.call("show " + root.sq(modelData)) }
                     }
+                    QQC2.ToolTip.text: modelData.split("/").pop()
+                    QQC2.ToolTip.visible: ma.containsMouse
+                    QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                }
+                PC3.Label {
+                    anchors.centerIn: parent
+                    visible: grid.count === 0
+                    font: Kirigami.Theme.smallFont
+                    opacity: 0.6
+                    text: "Keine Bilder in ~/Bilder/Primitive"
                 }
             }
         }

@@ -59,6 +59,9 @@ zufall=ja
 # Fortschritt unten links anzeigen: ja | nein
 fortschritt=nein
 
+# Bildformat: passend (ganzes Bild, Rand weich gefüllt) | fuellen (Bildschirm füllen, beschneiden)
+anpassung=passend
+
 # Neues Bild über das alte malen (statt mit leerer Fläche anzufangen): ja | nein
 ueberlagern=nein
 EOF
@@ -66,7 +69,7 @@ EOF
 [[ -f "$FILE" ]] || defaults > "$FILE"
 
 STATE="$CONF/control.env"
-SEQ=0 CMD="" PAUSED=0
+SEQ=0 CMD="" ARG="" PAUSED=0
 # shellcheck disable=SC1090
 [[ -f "$STATE" ]] && source "$STATE"
 
@@ -105,7 +108,7 @@ apply() {
   [[ ${#nums[@]} -eq 0 ]] && nums=(1)
   if [[ ${#nums[@]} -eq 1 ]]; then mode=${nums[0]}; else mode=0; list=$(IFS=,; echo "${nums[*]}"); fi
   local js
-  js=$(printf '{"mode":{"value":%s},"modes":{"value":"%s"},"alpha":{"value":%s},"shapes":{"value":%s},"speed":{"value":%s},"workres":{"value":%s},"budget":{"value":%s},"hold":{"value":%s},"shuffle":{"value":%s},"hud":{"value":%s},"overlay":{"value":%s}}' \
+  js=$(printf '{"mode":{"value":%s},"modes":{"value":"%s"},"alpha":{"value":%s},"shapes":{"value":%s},"speed":{"value":%s},"workres":{"value":%s},"budget":{"value":%s},"hold":{"value":%s},"shuffle":{"value":%s},"hud":{"value":%s},"overlay":{"value":%s},"fit":{"value":"%s"}}' \
     "$mode" "$list" \
     "$(num "$(get deckkraft)" 1 255 128)" \
     "$(num "$(get anzahl)" 10 20000 600)" \
@@ -115,19 +118,24 @@ apply() {
     "$(num "$(get standzeit)" 0 86400 20)" \
     "$(bool "$(get zufall)")" \
     "$(bool "$(get fortschritt)")" \
-    "$(bool "$(get ueberlagern)")")
+    "$(bool "$(get ueberlagern)")" \
+    "$([[ "$(get anpassung)" == fuellen ]] && echo fuellen || echo passend)")
   local p=false; [[ $PAUSED == 1 ]] && p=true
   { echo "window.PRIMITIVE_SETTINGS = $js;"
-    printf 'window.PRIMITIVE_CONTROL = {"seq":%s,"cmd":"%s","paused":%s};\n' "$SEQ" "$CMD" "$p"
+    local a="${ARG//\\/\\\\}"; a="${a//\"/\\\"}"
+    printf 'window.PRIMITIVE_CONTROL = {"seq":%s,"cmd":"%s","arg":"%s","paused":%s};\n' "$SEQ" "$CMD" "$a" "$p"
   } > "$D/settings.js.tmp"
   mv "$D/settings.js.tmp" "$D/settings.js"
 }
 
-save_state() { printf 'SEQ=%s\nCMD=%s\nPAUSED=%s\n' "$SEQ" "$CMD" "$PAUSED" > "$STATE"; }
-send_cmd() { SEQ=$((SEQ+1)); CMD="$1"; save_state; apply; }
+save_state() { printf 'SEQ=%s\nCMD=%s\nARG=%q\nPAUSED=%s\n' "$SEQ" "$CMD" "$ARG" "$PAUSED" > "$STATE"; }
+send_cmd() { SEQ=$((SEQ+1)); CMD="$1"; ARG="${2:-}"; save_state; apply; }
 
 case "${1:-show}" in
   next|again|finish) send_cmd "$1" ;;
+  show) PAUSED=0; send_cmd show "${2:?Datei fehlt}" ;;
+  list) # eingebettete Bilder, eine Datei pro Zeile
+    paths; grep -o '^window.PRIMITIVE_NAMES = .*' "$DEST/images.js" | sed 's/^window.PRIMITIVE_NAMES = \[//; s/\];$//' | python3 -c 'import sys,json; [print(x) for x in json.loads("["+sys.stdin.read()+"]")]' ;;
   pause)  PAUSED=1; save_state; apply ;;
   resume) PAUSED=0; save_state; apply ;;
   toggle) PAUSED=$((1-PAUSED)); save_state; apply; [[ $PAUSED == 1 ]] && echo paused || echo running ;;
@@ -141,7 +149,7 @@ case "${1:-show}" in
     p=false; [[ $PAUSED == 1 ]] && p=true
     printf '{"paused":%s,"images":%s,"pics":"%s","settings":{' "$p" "${n:-0}" "$PICS"
     sep=""
-    for k in formen deckkraft anzahl tempo aufloesung cpu standzeit zufall fortschritt ueberlagern; do
+    for k in formen deckkraft anzahl tempo aufloesung cpu standzeit zufall fortschritt ueberlagern anpassung; do
       v="$(get_raw "$k")"; v="${v//\"/}"; v="${v// /}"
       printf '%s"%s":"%s"' "$sep" "$k" "$v"; sep=","
     done

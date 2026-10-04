@@ -31,14 +31,15 @@ const cfg = {
   speed: 8,           // max. Formen pro Sekunde (0 = so schnell wie möglich)
   hold: 20,           // Sekunden, die das fertige Bild stehen bleibt
   shuffle: true,
-  overlay: false,     // neues Bild über das alte malen statt neu anfangen
+  overlay: false,
+  fit: "passend",     // passend (ganzes Bild) | fuellen (beschneiden)     // neues Bild über das alte malen statt neu anfangen
   hud: false
 };
 
 const main = document.getElementById("main"), old = document.getElementById("old"), hud = document.getElementById("hud");
 const ctx = main.getContext("2d"), octx = old.getContext("2d");
 let tokens = 0, lastT = 0, model, search, scale, offX, offY, imgIdx = -1, state = "idle", holdUntil = 0, generation = 0;
-let images = (window.PRIMITIVE_IMAGES || []), bag = [];
+let images = (window.PRIMITIVE_IMAGES || []), names = (window.PRIMITIVE_NAMES || []), bag = [];
 
 // images.js vor jedem Bild neu laden → neue Bilder im Ordner erscheinen ohne Neustart
 function reloadImages(cb) {
@@ -46,6 +47,7 @@ function reloadImages(cb) {
   const done = () => {
     sc.remove();
     const list = window.PRIMITIVE_IMAGES || [];
+    names = window.PRIMITIVE_NAMES || [];
     if (list.length && (list.length !== images.length || list[0] !== images[0] || list[list.length - 1] !== images[images.length - 1])) { images = list; bag = []; }
     cb();
   };
@@ -106,7 +108,16 @@ function startImage(forced, fresh) {
     const t = tmp.getContext("2d");
     const s = Math.max(tw / img.width, th / img.height);
     t.imageSmoothingQuality = "high";
-    t.drawImage(img, (tw - img.width * s) / 2, (th - img.height * s) * 0.3, img.width * s, img.height * s);
+    if (cfg.fit === "fuellen") {
+      t.drawImage(img, (tw - img.width * s) / 2, (th - img.height * s) * 0.3, img.width * s, img.height * s);
+    } else {
+      // passend: ganzes Bild zeigen, Rand mit weichgezeichneter Version füllen (keine harten Balken)
+      t.filter = "blur(" + Math.max(2, Math.round(tw / 40)) + "px)";
+      t.drawImage(img, (tw - img.width * s) / 2, (th - img.height * s) / 2, img.width * s, img.height * s);
+      t.filter = "none";
+      const sc = Math.min(tw / img.width, th / img.height);
+      t.drawImage(img, (tw - img.width * sc) / 2, (th - img.height * sc) / 2, img.width * sc, img.height * sc);
+    }
     let data;
     try { data = t.getImageData(0, 0, tw, th); }
     catch (e) { hud.style.display = "block"; hud.textContent = "Bild nicht lesbar (" + e.name + ") – Bilder mit add-images.sh einbetten"; return; }
@@ -190,6 +201,7 @@ window.wallpaperPropertyListener = {
     num("workres", "workRes"); num("budget", "budget", false); num("speed", "speed", false); num("hold", "hold", false);
     if (p.shuffle) cfg.shuffle = !!p.shuffle.value;
     if (p.overlay) cfg.overlay = !!p.overlay.value;
+    if (p.fit && p.fit.value && p.fit.value !== cfg.fit) { cfg.fit = String(p.fit.value); needRestart = true; }
     if (p.hud) { cfg.hud = !!p.hud.value; hud.style.display = cfg.hud ? "block" : "none"; }
     if (needRestart && state !== "idle") restart();
   }
@@ -217,6 +229,9 @@ function applyControl(c) {
   if (c.seq === ctlSeq) return;
   ctlSeq = c.seq;
   if (c.cmd === "next") { state = "idle"; start(); }
+  else if (c.cmd === "show" && c.arg) {
+    reloadImages(() => { const i = names.indexOf(c.arg); if (i >= 0 && images[i]) { imgIdx = i; state = "idle"; startImage(images[i], true); } });
+  }
   else if (c.cmd === "again" && curSrc) { state = "idle"; ++generation; startImage(curSrc, true); }
   else if (c.cmd === "finish" && state === "run") {
     // restliche Formen ohne Tempolimit fertig rechnen (zeitlich gestückelt, damit nichts hängt)

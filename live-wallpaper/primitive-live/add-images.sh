@@ -33,7 +33,7 @@ encode() { # $1 = Bilddatei → base64-JPEG (max. 512 px) auf stdout
   fi
 }
 
-entries=(); added=0; skipped=0
+entries=(); names=(); added=0; skipped=0
 for f in "${files[@]}"; do
   key=$(printf '%s|%s|%s' "$f" "$(stat -c '%Y %s' "$f")" "${IM[*]:-x}" | sha1sum | cut -c1-16)
   c="$CACHE/$key.b64"
@@ -46,6 +46,7 @@ for f in "${files[@]}"; do
     case "${f,,}" in *.png) mime=png;; *.webp) mime=webp;; *.gif) mime=gif;; *) mime=jpeg;; esac
   fi
   entries+=("\"data:image/$mime;base64,$(cat "$c")\"")
+  names+=("$f")
 done
 
 if [[ $APPEND -eq 1 && -f images.js ]]; then
@@ -57,6 +58,10 @@ fi
 { echo "window.PRIMITIVE_IMAGES = ["
   for i in "${!entries[@]}"; do sep=","; [[ $i -eq $((${#entries[@]}-1)) ]] && sep=""; echo "  ${entries[$i]}$sep"; done
   echo "];"; } > images.js.tmp
+# Dateipfade (gleiche Reihenfolge) – für Vorschau/Auswahl im Widget
+{ printf 'window.PRIMITIVE_NAMES = ['; sep=""
+  for n in "${names[@]}"; do n="${n//\\/\\\\}"; n="${n//\"/\\\"}"; printf '%s"%s"' "$sep" "$n"; sep=","; done
+  echo "];"; } >> images.js.tmp
 mv images.js.tmp images.js
 echo "images.js: ${#entries[@]} Bild(er) (neu: $added, übersprungen: $skipped)."
 
