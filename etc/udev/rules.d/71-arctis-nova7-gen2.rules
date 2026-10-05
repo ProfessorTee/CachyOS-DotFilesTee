@@ -1,0 +1,6 @@
+# SteelSeries Arctis Nova 7 Wireless Gen 2 (Dongle 1038:227e)
+# Gibt dem angemeldeten Benutzer Zugriff auf die HID-Steuerschnittstellen,
+# damit Arctis Sound Manager Akku, ChatMix, Sidetone, EQ usw. steuern kann.
+# Die von ASM 1.4.34 erzeugten Regeln kennen dieses Modell nicht.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="227e", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1038", ATTRS{idProduct}=="227e", TAG+="uaccess"

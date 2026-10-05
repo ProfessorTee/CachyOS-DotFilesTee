@@ -276,6 +276,40 @@ Bilder-Backup. Details: `live-wallpaper/ANLEITUNG.md`.
 
 ---
 
+## 11. Arctis Nova 7 Wireless Gen 2 – Arctis Sound Manager
+
+Ton und Mikro gehen ohne Zutun. Für die Software-Features (Akku, ChatMix,
+Sidetone, EQ) braucht Arctis Sound Manager Zugriff auf die HID-Schnittstellen
+des Dongles (`1038:227e`). Die Regeln, die ASM 1.4.34 selbst anlegt, kennen
+das Modell nicht – daher eine eigene udev-Regel:
+
+```bash
+sudo cp ~/DotFiles/etc/udev/rules.d/71-arctis-nova7-gen2.rules /etc/udev/rules.d/
+sudo udevadm control --reload
+sudo udevadm trigger
+# Dongle ab- und wieder anstecken, dann:
+systemctl --user restart arctis-manager
+```
+
+Prüfen: `getfacl /dev/hidrawN` (N = Headset-Schnittstelle, siehe
+`ls -l /dev/hidraw*`) muss `user:professortee:rw-` zeigen.
+Die Datei muss mit einer Zahl < 73 beginnen, sonst greift `uaccess` nicht.
+
+---
+
+## 12. Thermal-Monitor-Widget (gepatcht)
+
+Das KDE-Widget „Thermal Monitor“ 0.2.8 lässt plasmashell dauerhaft einen
+CPU-Kern auslasten (KDE ruckelt). Gepatchte Version liegt in
+`plasma-widgets/org.kde.olib.thermalmonitor/`, Details in dessen `FIX.md`.
+
+```bash
+cp -r ~/DotFiles/plasma-widgets/org.kde.olib.thermalmonitor ~/.local/share/plasma/plasmoids/
+systemctl --user restart plasma-plasmashell
+```
+
+---
+
 ## Changelog / bekannte Themen
 
 Siehe `Notizen.txt` für laufende Notizen (Laufwerks-Historie, NTFS-Fixes etc.).

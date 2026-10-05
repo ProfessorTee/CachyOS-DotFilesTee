@@ -11,5 +11,11 @@ läuft bereits alles wieder (7h downloads dank 33mb/s max - notsoyay)
 .etc/fstab gelöscht
 HDR-Fix for TV
 
+    01.10.26
+Thermal-Monitor-Widget gepatcht (plasmashell 100% CPU): plasma-widgets/
+
     02.10.26
 Live-Wallpaper (Primitive Live + LN Plotter) inkl. KDE-Widgets: live-wallpaper/, Einstellungen sichert backup.sh mit
+
+    05.10.26
+Arctis Nova 7 Gen 2: udev-Regel für Arctis Sound Manager (etc/udev/rules.d/71-arctis-nova7-gen2.rules)
