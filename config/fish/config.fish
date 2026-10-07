@@ -8,6 +8,6 @@ source /usr/share/cachyos-fish-config/cachyos-config.fish
 # overwrite greeting
 # overwrite greeting
 function fish_greeting
-    pokemon-colorscripts -b -r > /tmp/pokemon-logo.txt
+    pokemon-colorscripts -r > /tmp/pokemon-logo.txt
     fastfetch --logo-type file --logo /tmp/pokemon-logo.txt
 end
