@@ -1,0 +1,12 @@
+[Unit]
+Description=Sunshine nur bei Bedarf starten/stoppen
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/sunshine-ondemand.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

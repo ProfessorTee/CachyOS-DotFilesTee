@@ -19,3 +19,10 @@ Live-Wallpaper (Primitive Live + LN Plotter) inkl. KDE-Widgets: live-wallpaper/,
 
     05.10.26
 Arctis Nova 7 Gen 2: udev-Regel für Arctis Sound Manager (etc/udev/rules.d/71-arctis-nova7-gen2.rules)
+
+    11.10.26
+KDE-Energieprofil-Hook gesichert (usr/local/bin/power-profile-hook.sh + etc/systemd/system/power-profile-hook.service), backup.sh spiegelt beide.
+Energiesparen deckelt jetzt auch den VRAM-Takt (nvidia-smi -lmc 405,810): GPU in P5 ~22 W statt P0 ~95 W
+Energieprofil-Hook: Eco = alles auf Minimum, Ausgeglichen = CPU Werkstakt 5,2 GHz (OC raus) / GPU 75 % Power-Limit, Leistung = bis 100 %, nichts erzwungen (Repo-Version, noch nicht installiert)
+bin/eco-wallpaper.sh + systemd/eco-wallpaper.service: Live-Wallpaper pausiert im Energiesparprofil
+bin/sunshine-ondemand.sh + systemd/sunshine-ondemand.service: Sunshine startet erst bei Moonlight-Anfrage, stoppt nach 5 min ohne Stream

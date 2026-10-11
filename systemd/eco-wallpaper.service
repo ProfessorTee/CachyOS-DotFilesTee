@@ -1,0 +1,12 @@
+[Unit]
+Description=Live-Wallpaper im Energiesparprofil pausieren
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/eco-wallpaper.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

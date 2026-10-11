@@ -16,6 +16,12 @@ MIRROR=(
     "etc/environment|/etc/environment"
     "systemd/dotfiles-backup.service|$C/systemd/user/dotfiles-backup.service"
     "systemd/dotfiles-backup.timer|$C/systemd/user/dotfiles-backup.timer"
+    "usr/local/bin/power-profile-hook.sh|/usr/local/bin/power-profile-hook.sh"
+    "etc/systemd/system/power-profile-hook.service|/etc/systemd/system/power-profile-hook.service"
+    "bin/eco-wallpaper.sh|$HOME/.local/bin/eco-wallpaper.sh"
+    "bin/sunshine-ondemand.sh|$HOME/.local/bin/sunshine-ondemand.sh"
+    "systemd/eco-wallpaper.service|$C/systemd/user/eco-wallpaper.service"
+    "systemd/sunshine-ondemand.service|$C/systemd/user/sunshine-ondemand.service"
 )
 # Nicht gespiegelt: etc/udev/... (Repo-Version hat die Doku-Kommentare)
 

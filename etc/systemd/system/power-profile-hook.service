@@ -1,0 +1,10 @@
+[Unit]
+Description=CPU/GPU-Anpassung bei KDE-Energieprofilwechsel
+After=power-profiles-daemon.service
+
+[Service]
+ExecStart=/usr/local/bin/power-profile-hook.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
