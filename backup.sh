@@ -24,6 +24,7 @@ MIRROR=(
     "systemd/sunshine-ondemand.service|$C/systemd/user/sunshine-ondemand.service"
 )
 # Nicht gespiegelt: etc/udev/... (Repo-Version hat die Doku-Kommentare)
+# Nicht gespiegelt: usr/src/hid-logishifter-0.1.0/ (gepatchte Version, yay-Update würde sie überschreiben)
 
 for entry in "${MIRROR[@]}"; do
     src="${entry#*|}" dst="${entry%%|*}"

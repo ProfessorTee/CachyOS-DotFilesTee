@@ -26,3 +26,8 @@ Energiesparen deckelt jetzt auch den VRAM-Takt (nvidia-smi -lmc 405,810): GPU in
 Energieprofil-Hook: Eco = alles auf Minimum, Ausgeglichen = CPU Werkstakt 5,2 GHz (OC raus) / GPU 75 % Power-Limit, Leistung = bis 100 %, nichts erzwungen (Repo-Version, noch nicht installiert)
 bin/eco-wallpaper.sh + systemd/eco-wallpaper.service: Live-Wallpaper pausiert im Energiesparprofil
 bin/sunshine-ondemand.sh + systemd/sunshine-ondemand.service: Sunshine startet erst bei Moonlight-Anfrage, stoppt nach 5 min ohne Stream
+
+    12.10.26
+H-Shifter: Adapter erkennt die mittlere Gasse falsch (3/4 als 1/2/5). Treiber gepatcht: Gänge 1-6 aus den X/Y-Achsen, R weiter vom Adapter, Gasse wechselt nur über Neutral. Grenzwerte live in /sys/module/hid_logishifter/parameters/
+Gepatchte Quelle: usr/src/hid-logishifter-0.1.0/hid-logishifter.c (feste Kopie, nicht gespiegelt). Nach yay-Update von hid-logishifter-dkms neu einspielen:
+sudo cp usr/src/hid-logishifter-0.1.0/hid-logishifter.c /usr/src/hid-logishifter-0.1.0/ && sudo dkms build hid-logishifter/0.1.0 -k (uname -r) --force && sudo dkms install hid-logishifter/0.1.0 -k (uname -r) --force && sudo modprobe -r hid_logishifter && sudo modprobe hid_logishifter
