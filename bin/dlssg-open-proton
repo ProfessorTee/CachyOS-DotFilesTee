@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Mini-GUI: copies an installed Proton build into a separate compat tool with
+# dlssg-open (DLSS frame generation on RTX 30) installed, using the newest release.
+set -euo pipefail
+
+STEAM="$HOME/.local/share/Steam"
+DEST="$STEAM/compatibilitytools.d"
+CACHE="$HOME/.cache/dlssg-open"
+REPO="dniminenn/dlssg-open"
+TITLE="dlssg-open Proton"
+LAUNCH="DXVK_NVAPI_GPU_ARCH=AD100 NVCUDA_LITE_CC=8.9 DXVK_NVAPI_CUBIN_RETARGET_SM=86"
+
+[[ "${1:-}" == --folder ]] && exec xdg-open "$DEST"
+
+fail() { kdialog --title "$TITLE" --error "$1"; exit 1; }
+
+# Installed Proton builds that dlssg-open can patch (nvapi + nvcuda present), minus our own copies.
+items=()
+for d in "$STEAM"/steamapps/common/Proton* /usr/share/steam/compatibilitytools.d/* "$DEST"/*; do
+    [[ -f "$d/proton" && -f "$d/files/lib/wine/nvapi/x86_64-windows/nvapi64.dll" ]] || continue
+    [[ "$d" == *-dlssg-open* ]] && continue
+    items+=("$d" "$(basename "$d")" off)
+done
+((${#items[@]})) || fail "Keine passende Proton-Version gefunden."
+
+src=$(kdialog --title "$TITLE" --radiolist "Welche Proton-Version soll den Mod bekommen?" "${items[@]}") || exit 0
+
+# Newest release of the mod
+rel=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest") || fail "GitHub nicht erreichbar."
+read -r tag url < <(python3 -I -c 'import json,sys; d=json.load(sys.stdin); print(d["tag_name"], d["assets"][0]["browser_download_url"])' <<<"$rel")
+pkg="$CACHE/$tag"
+if [[ ! -f "$pkg/.ok" ]]; then
+    rm -rf "$pkg"; mkdir -p "$pkg"
+    curl -fsSL -o "$pkg/release.tar.gz" "$url" || fail "Download von $tag fehlgeschlagen."
+    tar -xzf "$pkg/release.tar.gz" -C "$pkg"
+    sumdir=$(dirname "$(find "$pkg" -name SHA256SUMS | head -1)")
+    (cd "$(dirname "$sumdir")" && sha256sum -c --quiet "$sumdir/SHA256SUMS") || fail "Prüfsummen von $tag stimmen nicht."
+    touch "$pkg/.ok"
+fi
+installer=$(find "$pkg" -name install.py | head -1)
+
+name="$(basename "$src")-dlssg-open-$tag"
+target="$DEST/$name"
+if [[ -e "$target" ]]; then
+    kdialog --title "$TITLE" --warningyesno "$name existiert schon. Neu erstellen?" || exit 0
+    rm -rf -- "$target"
+fi
+
+kdialog --title "$TITLE" --passivepopup "Kopiere $(basename "$src") … (kann etwas dauern)" 5
+nice -n 19 cp -a --reflink=auto "$src" "$target"
+
+# Own manifest so Steam lists the copy as a separate tool (Valve's toolmanifest.vdf stays for the runtime)
+cat > "$target/compatibilitytool.vdf" <<EOF
+"compatibilitytools"
+{
+  "compat_tools"
+  {
+    "$name"
+    {
+      "install_path" "."
+      "display_name" "$(basename "$src") (dlssg-open $tag)"
+      "from_oslist"  "windows"
+      "to_oslist"    "linux"
+    }
+  }
+}
+EOF
+
+log=$(python3 -I "$installer" --proton "$target" 2>&1) || { rm -rf -- "$target"; fail "Installation fehlgeschlagen:"$'\n'"$log"; }
+
+kdialog --title "$TITLE" --yes-label "Proton-Ordner öffnen" --no-label "Schließen" --yesno "Fertig: $(basename "$src") (dlssg-open $tag)
+
+1. Steam neu starten
+2. Im Spiel unter Kompatibilität die neue Version wählen
+3. In die Launch-Optionen vor %command%:
+$LAUNCH
+
+Nicht dazu: PROTON_NVIDIA_LIBS / PROTON_NVIDIA_NVCUDA" && xdg-open "$DEST"

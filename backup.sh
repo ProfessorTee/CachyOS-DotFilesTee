@@ -22,6 +22,8 @@ MIRROR=(
     "bin/sunshine-ondemand.sh|$HOME/.local/bin/sunshine-ondemand.sh"
     "systemd/eco-wallpaper.service|$C/systemd/user/eco-wallpaper.service"
     "systemd/sunshine-ondemand.service|$C/systemd/user/sunshine-ondemand.service"
+    "bin/dlssg-open-proton|$HOME/.local/bin/dlssg-open-proton"
+    "config/applications/dlssg-open-proton.desktop|$HOME/.local/share/applications/dlssg-open-proton.desktop"
 )
 # Nicht gespiegelt: etc/udev/... (Repo-Version hat die Doku-Kommentare)
 # Nicht gespiegelt: usr/src/hid-logishifter-0.1.0/ (gepatchte Version, yay-Update würde sie überschreiben)

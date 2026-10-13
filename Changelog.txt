@@ -31,3 +31,7 @@ bin/sunshine-ondemand.sh + systemd/sunshine-ondemand.service: Sunshine startet e
 H-Shifter: Adapter erkennt die mittlere Gasse falsch (3/4 als 1/2/5). Treiber gepatcht: Gänge 1-6 aus den X/Y-Achsen, R weiter vom Adapter, Gasse wechselt nur über Neutral. Grenzwerte live in /sys/module/hid_logishifter/parameters/
 Gepatchte Quelle: usr/src/hid-logishifter-0.1.0/hid-logishifter.c (feste Kopie, nicht gespiegelt). Nach yay-Update von hid-logishifter-dkms neu einspielen:
 sudo cp usr/src/hid-logishifter-0.1.0/hid-logishifter.c /usr/src/hid-logishifter-0.1.0/ && sudo dkms build hid-logishifter/0.1.0 -k (uname -r) --force && sudo dkms install hid-logishifter/0.1.0 -k (uname -r) --force && sudo modprobe -r hid_logishifter && sudo modprobe hid_logishifter
+
+    14.10.26
+bin/dlssg-open-proton (+ config/applications/dlssg-open-proton.desktop): Mini-GUI (kdialog), kopiert eine installierte Proton-Version nach compatibilitytools.d/<name>-dlssg-open-<tag> und installiert die neueste dlssg-open-Version (DLSS Frame Generation auf RTX 30 unter Proton). "dlssg-open-proton --folder" bzw. Rechtsklick im Startmenü öffnet den Proton-Ordner. Launch-Optionen: DXVK_NVAPI_GPU_ARCH=AD100 NVCUDA_LITE_CC=8.9 DXVK_NVAPI_CUBIN_RETARGET_SM=86, ohne PROTON_NVIDIA_LIBS/NVCUDA.
+Crimson Desert: PROTON_NVIDIA_NVCUDA=1 (auch über PROTON_NVIDIA_LIBS=1) lässt das Spiel seit NVIDIA 615.78 beim Start abstürzen.
