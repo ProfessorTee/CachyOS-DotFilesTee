@@ -7,7 +7,8 @@ SVC=app-dev.lizardbyte.app.Sunshine.service
 IDLE_MIN=5
 idle=0
 while true; do
-  if ! systemctl --user -q is-active "$SVC"; then
+  # nur lauschen, wenn Sunshine wirklich aus ist (nicht beim Starten/Neustarten, sonst blockieren wir dessen Ports)
+  if [[ $(systemctl --user show -p ActiveState --value "$SVC") =~ ^(inactive|failed)$ ]]; then
     python3 - <<'PY' || { sleep 10; continue; }   # blockiert bis zur ersten Verbindung
 import socket, selectors
 sel = selectors.DefaultSelector()
@@ -15,7 +16,7 @@ for port in (47989, 47990):
     sel.register(socket.create_server(("", port), family=socket.AF_INET6, dualstack_ipv6=True), selectors.EVENT_READ)
 sel.select()
 PY
-    systemctl --user start "$SVC"
+    systemctl --user reset-failed "$SVC" 2>/dev/null; systemctl --user start "$SVC"
     idle=0
   fi
   sleep 60
