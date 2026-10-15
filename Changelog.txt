@@ -35,3 +35,9 @@ sudo cp usr/src/hid-logishifter-0.1.0/hid-logishifter.c /usr/src/hid-logishifter
     14.10.26
 bin/dlssg-open-proton (+ config/applications/dlssg-open-proton.desktop): Mini-GUI (kdialog), kopiert eine installierte Proton-Version nach compatibilitytools.d/<name>-dlssg-open-<tag> und installiert die neueste dlssg-open-Version (DLSS Frame Generation auf RTX 30 unter Proton). "dlssg-open-proton --folder" bzw. Rechtsklick im Startmenü öffnet den Proton-Ordner. Launch-Optionen: DXVK_NVAPI_GPU_ARCH=AD100 NVCUDA_LITE_CC=8.9 DXVK_NVAPI_CUBIN_RETARGET_SM=86, ohne PROTON_NVIDIA_LIBS/NVCUDA.
 Crimson Desert: PROTON_NVIDIA_NVCUDA=1 (auch über PROTON_NVIDIA_LIBS=1) lässt das Spiel seit NVIDIA 615.78 beim Start abstürzen.
+
+    15.10.26
+Multi-Frame-Gen (bis 4X + dynamisch) auf RTX 3090 unter Proton: dlssg-open-Proton-Kopie (dlssg-open-proton) + sdli1995 dlssg_for_sm86 version.dll im Spielordner. Launch-Optionen: NVCUDA_LITE_CC=8.6 PROTON_ENABLE_NVAPI=1 WINEDLLOVERRIDES="version.dll=n,b" ... %command% (OHNE DXVK_NVAPI_GPU_ARCH). Der Mod braucht von CUDA nur die Geräteabfrage (nvcuda-lite reicht), die Kernel laufen über NvAPI CuModule (dlssg-open dxvk-nvapi).
+Achtung: Arch-Spoof auf Blackwell (GB200) schaltet MFG-Optionen frei, hängt aber beim Laden; speichert _numFramesToGenerate in user_engine_option_save.xml -> danach hängt das Spiel auch ohne Spoof, Wert auf 1 setzen.
+Crimson Desert: dlssg_for_sm86 zusammen mit CrimsonRoute (ASI-Loader winmm.dll) -> version.dll in bin64 zu 00_dlssg_sm86.asi umbenennen (lädt vor CrimsonRoute.asi), WINEDLLOVERRIDES="winmm.dll,dxgi.dll=n,b". Als version.dll-Proxy daneben bricht DLSS-G ab ("hardware scheduling").
+autohide-desktop-icons/: Tray-Tool, blendet Desktop-Icons nach 1-5 min Inaktivität aus (Filter der Ordneransicht, Positionen bleiben), Klick auf den Desktop zeigt sie wieder. Autostart per Symlink nach ~/.config/autostart.

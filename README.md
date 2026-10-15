@@ -310,6 +310,22 @@ systemctl --user restart plasma-plasmashell
 
 ---
 
+## 13. AutoHide Desktop Icons
+
+Blendet die Desktop-Icons nach 1–5 min ohne Maus-/Tastatureingabe aus.
+Links- oder Rechtsklick auf den freien Desktop blendet sie wieder ein.
+Tray-Icon: Linksklick = sofort ein/aus, Rechtsklick = Menü (an/aus, Zeit).
+Braucht `pyside6`, `python-evdev` und die Gruppe `input`. Details stehen im
+Kopf von `autohide-desktop-icons/autohide_desktop_icons.py`.
+
+```bash
+sudo pacman -S --needed pyside6 python-evdev
+sudo usermod -aG input $USER   # danach neu einloggen
+ln -sf ~/DotFiles/autohide-desktop-icons/autohide-desktop-icons-autostart.desktop ~/.config/autostart/autohide-desktop-icons.desktop
+```
+
+---
+
 ## Changelog / bekannte Themen
 
 Siehe `Notizen.txt` für laufende Notizen (Laufwerks-Historie, NTFS-Fixes etc.).

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AutoHide Desktop Icons
+Comment=Blendet Desktop-Icons nach Inaktivitaet aus, Klick auf den Desktop zeigt sie wieder
+Exec=python3 /home/professortee/DotFiles/autohide-desktop-icons/autohide_desktop_icons.py
+Icon=user-desktop
+X-KDE-autostart-after=panel
+NoDisplay=true
