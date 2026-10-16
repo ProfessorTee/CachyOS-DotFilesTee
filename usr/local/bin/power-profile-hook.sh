@@ -17,11 +17,8 @@ CPU_MAX=$(cat $C/amd_pstate_max_freq 2>/dev/null || cat $C/cpuinfo_max_freq)  # 
 CPU_STOCK=5200000                                           # kHz, Werks-Boost
 BCLK=1025                                                   # BCLK in 1/10 MHz (102,5 MHz)
 
-GPU_DEF=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits | head -1)
-GPU_DEF=${GPU_DEF%.*}
-GPU_MIN=$(nvidia-smi --query-gpu=power.min_limit --format=csv,noheader,nounits | head -1)
-GPU_MIN=${GPU_MIN%.*}
-GPU_BAL_PCT=75                                              # Ausgeglichen: Power-Limit in % vom Standard
+# GPU: LACT-Profile Eco / Balanced / Performance (Takt, Undervolt, Power-Limit in /etc/lact/config.yaml).
+# Nicht mit nvidia-smi dazwischenfunken, -rgc würde das Taktlimit des Undervolts aufheben.
 
 apply() {
   profile=$(powerprofilesctl get)
@@ -31,21 +28,15 @@ apply() {
   case "$profile" in
     power-saver)                   # alles auf niedrigstem Takt
       set_cpu_max "$CPU_MIN"
-      nvidia-smi -pl "$GPU_MIN"
-      nvidia-smi -lgc 210,210      # GPU-Takt auf Minimum
-      nvidia-smi -lmc 405,405      # VRAM-Takt auf Minimum, sonst bleibt die Karte in P0 (~95 W statt ~20 W)
+      lact cli profile set Eco     # GPU 210 / VRAM 405 MHz fest, 100 W
       ;;
-    balanced)                      # CPU auf Werksniveau, GPU bis 75 %, Takte adaptiv
+    balanced)                      # CPU auf Werksniveau, GPU Undervolt bis 262 W (75 %), Takte adaptiv
       set_cpu_max $(( CPU_STOCK * 1000 / BCLK ))
-      nvidia-smi -pl $(( GPU_DEF * GPU_BAL_PCT / 100 ))
-      nvidia-smi -rgc
-      nvidia-smi -rmc
+      lact cli profile set Balanced
       ;;
-    performance)                   # alles bis 100 % erlaubt, nichts erzwungen
+    performance)                   # CPU voller Boost, GPU Undervolt bis 400 W
       set_cpu_max "$CPU_MAX"
-      nvidia-smi -pl "$GPU_DEF"
-      nvidia-smi -rgc
-      nvidia-smi -rmc
+      lact cli profile set Performance
       ;;
   esac
 }

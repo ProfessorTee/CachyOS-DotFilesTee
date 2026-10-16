@@ -1,6 +1,7 @@
 [Unit]
 Description=CPU/GPU-Anpassung bei KDE-Energieprofilwechsel
-After=power-profiles-daemon.service
+After=power-profiles-daemon.service lactd.service
+Wants=lactd.service
 
 [Service]
 ExecStart=/usr/local/bin/power-profile-hook.sh
