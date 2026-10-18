@@ -3,5 +3,4 @@
 #
 # Syntax: simple "KEY=VAL" pairs on separate lines
 #
-ENABLE_HDR_WSI=1
 KWIN_DRM_ALLOW_NVIDIA_COLORSPACE=1
