@@ -1,0 +1,61 @@
+# Philips 55PUS8909 Ambilight (EU), Android TV 11, platform PH1M_EA_9970A ("2021_22_Philips_UHD_Android_TV")
+# Built by TPV (ro.product.manufacturer=TPV), MediaTek SoC, about 2.7 GB RAM.
+# Philips packages use the org.droidtv prefix. Stock launcher: com.google.android.tvlauncher.
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/philips-55pus8909-android-tv-11/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/philips-55pus8909-android-tv-11/debloat.txt com.google.android.tvlauncher
+# Everything is DISABLED, not uninstalled. Comment out any line you want to keep.
+#
+# Quirks: port 5555 is open with plain "USB debugging" on, no pairing needed.
+# Already disabled from the factory (do not list, restore.sh would turn them ON): org.droidtv.freeviewplayers
+# and all uk.co.freeview.* apps.
+
+# Philips / TPV telemetry
+org.droidtv.usagelogger                # OnBootLogger
+org.droidtv.tv.frameworklogger
+org.droidtv.gel                        # GatheringService (usage data collection)
+org.droidtv.candeebug                  # dacclient, CollectionService
+org.droidtv.nettvregistration          # Net TV registration + ACR (content recognition) terms
+
+# Recommendations, ads, partner rows
+org.droidtv.nettvrecommender
+org.droidtv.recommendation
+org.droidtv.leanbackcustomizer         # partner config that injects rows into the home screen
+com.google.android.tvrecommendations
+org.droidtv.fastip                     # free ad-supported channels, advertising ID
+org.droidtv.demome                     # shop demo mode
+android.autoinstalls.config.tpv.device # Play auto-install of partner apps
+
+# Preloads
+org.droidtv.nettv.market               # Philips app gallery
+org.droidtv.nettvapps
+org.droidtv.nettvapp1814               # zeasn web apps
+org.droidtv.nettvapp3093
+org.droidtv.nettvapp3463
+com.vewd.core.browserui                # Vewd/Opera browser
+org.droidtv.dropboxprovider
+#org.droidtv.eum                       # KEEP: Sources drawer (org.droidtv.channels) binds its service, NPE + empty panel without it
+io.mimi.tvapp                          # Mimi hearing test app (io.mimi.sdk.service kept for audio)
+com.google.android.feedback
+com.google.android.play.games
+com.google.android.videos
+com.google.android.youtube.tvmusic
+
+# Casting and voice (by choice)
+com.google.android.apps.mediashell     # Chromecast built-in
+com.google.android.katniss             # Google Assistant
+org.droidtv.amazonalexa
+
+# Broadcast operator apps (no live TV in use)
+org.droidtv.astrahdplus                # HD+ satellite
+org.droidtv.m7opapp                    # M7 operator (CanalDigitaal, Diveo, ...)
+org.droidtv.hbbtvopapp
+org.droidtv.dvbi                       # DVB-I internet channels
+
+# Stock home. Disable only after the new launcher is installed and set as home.
+#com.google.android.tvlauncher
+
+# Kept on purpose: Ambilight/Hue (ambihuecommon, alhuewizard, ambiair, aurora, sunrise), DTS Play-Fi,
+# org.droidtv.playtv + mediatek tvinput + hdmiservice (HDMI inputs), org.droidtv.oad + com.easy.oad
+# (firmware updates), tvsystemui, settings, channels, epgdata, GlobalKey, keyboards, Play Store/Services,
+# org.droidtv.csm/sam/factory (service menus), backdrop (ambient screensaver).

@@ -1,0 +1,5 @@
+com.oculus.ovrmonitormetricsservice
+com.oculus.bugreportuploader
+com.meta.federatedcomputing.oculus
+com.oculus.quickpromotionservice
+com.meta.horizonadidservice

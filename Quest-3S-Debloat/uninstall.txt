@@ -1,0 +1,7 @@
+com.whatsapp
+com.facebook.orca
+com.oculus.igvr
+com.meta.curio.toybox
+com.oculus.vrprivacycheckup
+com.meta.handseducationmodule
+com.facebook.arvr.quillplayer

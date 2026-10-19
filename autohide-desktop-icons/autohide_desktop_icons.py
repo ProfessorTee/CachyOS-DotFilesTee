@@ -11,8 +11,11 @@ Wie:
   Der alte Filter wird in derselben Plasma-Config gemerkt und zurueckgesetzt.
 - Eingaben kommen per evdev (/dev/input, User muss in Gruppe "input" sein).
   Tastendruecke werden nur als "Aktivitaet" gezaehlt, nie gespeichert.
-- Klick auf den Desktop erkennt ein kurzes KWin-Skript: oberstes Fenster
-  unter dem Mauszeiger == Desktop-Fenster -> Icons wieder einblenden.
+- Klick auf den Desktop erkennt ein kurzes KWin-Skript kurz nach dem Klick:
+  aktives Fenster == Desktop und unter dem Mauszeiger keine Leiste/Popup ->
+  Icons wieder einblenden. Ueber das aktive Fenster statt nur ueber die
+  Stapelreihenfolge, weil "Desktop anzeigen" Fenster (z.B. Vollbildspiele)
+  nur versteckt, sie bleiben im Stapel ueber dem Desktop.
 
 Benoetigt: pyside6, python-evdev (pacman).
 """
@@ -52,16 +55,17 @@ JS_STATE = JS_DESKTOPS % f'if (d.readConfig("filterPattern") == "{MARKER}") prin
 
 # Laeuft in KWin: Desktop unter dem Mauszeiger? -> JS_SHOW an plasmashell.
 KWIN_PROBE = """
-const p = workspace.cursorPos, st = workspace.stackingOrder;
-for (let i = st.length - 1; i >= 0; i--) {
+const a = workspace.activeWindow, p = workspace.cursorPos, st = workspace.stackingOrder;
+let onDesktop = a && a.desktopWindow;
+for (let i = st.length - 1; onDesktop && i >= 0; i--) {
     const w = st[i], g = w.frameGeometry;
     if (w.minimized || w.hidden || !(w.onAllDesktops || w.desktops.includes(workspace.currentDesktop))) continue;
-    if (p.x >= g.x && p.x < g.x + g.width && p.y >= g.y && p.y < g.y + g.height) {
-        if (w.desktopWindow)
-            callDBus("org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "evaluateScript", %s);
-        break;
-    }
+    if (p.x < g.x || p.x >= g.x + g.width || p.y < g.y || p.y >= g.y + g.height) continue;
+    if (w.desktopWindow) break;
+    if (w.dock || w.popupWindow || w.notification || w.onScreenDisplay) onDesktop = false;  // Leiste, Menue, Popup
 }
+if (onDesktop)
+    callDBus("org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell", "evaluateScript", %s);
 """ % json.dumps(JS_SHOW)
 PROBE_FILE = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "autohide-desktop-icons-probe.js"
 
@@ -168,8 +172,8 @@ class Tray:
 
     def on_click(self):
         if self.hidden:
-            kwin_probe()
-            QTimer.singleShot(300, self.refresh)
+            QTimer.singleShot(150, kwin_probe)  # erst nachdem KWin den Klick-Fokus gesetzt hat
+            QTimer.singleShot(450, self.refresh)
 
     def refresh(self):
         self.hidden = "hidden" in plasma(JS_STATE)
